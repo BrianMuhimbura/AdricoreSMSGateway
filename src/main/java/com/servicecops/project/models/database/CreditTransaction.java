@@ -3,9 +3,13 @@ package com.servicecops.project.models.database;
 import jakarta.persistence.*;
 import java.time.Instant;
 import java.util.UUID;
+import lombok.Getter;
+import lombok.Setter;
 
 @Entity
 @Table(name = "credit_transactions")
+@Getter
+@Setter
 public class CreditTransaction {
     @Id
     @GeneratedValue
@@ -33,10 +37,7 @@ public class CreditTransaction {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    // Getters and setters
-
     public enum CreditTxType {
         TOPUP, ALLOCATE, CONSUMPTION, REFUND, REVERSAL
     }
 }
-
