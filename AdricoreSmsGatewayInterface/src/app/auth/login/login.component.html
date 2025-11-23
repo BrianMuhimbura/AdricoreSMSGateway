@@ -1,0 +1,68 @@
+<div class="login-container refined">
+  <div class="brand-panel">
+    <div class="logo-wrap">
+      <img src="assets/img/adricore.png" alt="Adricore" class="logo" />
+      <h1 class="app-title">Adricore SMS Gateway</h1>
+      <p class="subtitle">Secure messaging operations dashboard</p>
+    </div>
+    <ul class="feature-list compact">
+      <li><i class="pi pi-shield"></i><span>Security first</span></li>
+      <li><i class="pi pi-chart-line"></i><span>Live insights</span></li>
+      <li><i class="pi pi-envelope"></i><span>Message flow</span></li>
+    </ul>
+  </div>
+  <div class="form-panel">
+    <p-card class="form-card elevated">
+      <ng-template pTemplate="header">
+        <div class="header-flex animated-header">
+          <span class="panel-title gradient-text">Sign in</span>
+          <span class="panel-sub">Enter your credentials</span>
+          <span class="panel-accent" aria-hidden="true"></span>
+        </div>
+      </ng-template>
+      <form [formGroup]="form" (ngSubmit)="submit()" class="form-grid tightened">
+        <div class="field">
+          <label for="username">Username</label>
+          <input id="username" type="text" pInputText formControlName="username" [class.invalid]="f.username.touched && f.username.invalid" placeholder="Your username" />
+          <small *ngIf="f.username.touched && f.username.hasError('required')" class="error">Required</small>
+          <small *ngIf="f.username.touched && f.username.hasError('minlength')" class="error">Min 3 chars</small>
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="password-group p-inputgroup">
+            <input id="password" [type]="showPassword() ? 'text' : 'password'" pInputText formControlName="password" [class.invalid]="f.password.touched && f.password.invalid" placeholder="••••••" />
+            <button type="button" pButton class="toggle-btn" (click)="togglePassword()" [icon]="showPassword() ? 'pi pi-eye-slash' : 'pi pi-eye'" [disabled]="loading"></button>
+          </div>
+          <small *ngIf="f.password.touched && f.password.hasError('required')" class="error">Required</small>
+          <small *ngIf="f.password.touched && f.password.hasError('minlength')" class="error">Min 4 chars</small>
+        </div>
+        <div class="field captcha-field">
+          <label for="captchaInput">Captcha</label>
+          <div class="captcha-box captcha-canvas-wrap">
+            <canvas id="captchaCanvas" width="180" height="60" class="captcha-canvas" aria-label="Captcha canvas"></canvas>
+            <button type="button" pButton icon="pi pi-refresh" class="p-button-text p-button-sm" (click)="generateCaptcha()" [disabled]="loading" aria-label="Refresh captcha"></button>
+          </div>
+          <input id="captchaInput" type="text" pInputText formControlName="captchaInput" [class.invalid]="f.captchaInput.touched && f.captchaInput.invalid" placeholder="Enter code" />
+          <small *ngIf="f.captchaInput.touched && f.captchaInput.hasError('required')" class="error">Captcha required</small>
+        </div>
+        <div class="row between meta-row">
+          <div class="remember-row">
+            <p-checkbox inputId="remember" formControlName="remember" binary></p-checkbox>
+            <label for="remember">Remember me</label>
+          </div>
+          <a class="forgot-link" href="#" (click)="$event.preventDefault()">Forgot password?</a>
+        </div>
+        <p-message *ngIf="error()" severity="error" [text]="error() || ''"></p-message>
+        <button pButton type="submit" label="Login" class="submit-btn" [disabled]="loading || form.invalid">
+          <span class="pi pi-spin pi-spinner" *ngIf="loading"></span>
+        </button>
+        <div class="aux-links single">
+          <a href="#" (click)="$event.preventDefault()" class="link">Privacy</a>
+          <span class="sep">•</span>
+          <a href="#" (click)="$event.preventDefault()" class="link">Help</a>
+        </div>
+      </form>
+    </p-card>
+  </div>
+</div>
+

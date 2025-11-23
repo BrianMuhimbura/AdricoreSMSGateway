@@ -1,0 +1,25 @@
+<div class="layout-shell">
+  <aside class="sidebar">
+    <div class="header">
+      <img src="assets/img/adricore.png" alt="Logo" class="app-logo" />
+      <span class="text-primary font-bold">Adricore</span>
+    </div>
+    <p-panelMenu [model]="items"></p-panelMenu>
+    <div class="mt-auto p-2">
+      <button pButton label="Logout" icon="pi pi-sign-out" class="p-button-danger w-full" (click)="logout()"></button>
+    </div>
+  </aside>
+  <div class="main-content">
+    <div class="header justify-content-between">
+      <div class="flex align-items-center gap-2">
+        <i class="pi pi-home"></i>
+        <span>{{ pageTitle }}</span>
+      </div>
+      <div *ngIf="auth.username() as user" class="text-sm">Logged in as: <strong>{{user}}</strong></div>
+    </div>
+    <div class="content-scroll">
+      <router-outlet (activate)="onActivate($event)"></router-outlet>
+    </div>
+  </div>
+</div>
+
