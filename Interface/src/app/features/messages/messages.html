@@ -1,0 +1,224 @@
+<section class="page">
+  <div class="hero">
+    <div>
+      <p class="kicker">Traffic</p>
+      <h2>Messages</h2>
+      <p>Inspect outbound SMS: recipient, sender, body, status, partner, and provider identifiers.</p>
+      @if (auth.isPartner()) {
+        <p>Showing only messages sent by your organisation.</p>
+      }
+    </div>
+    <div class="hero-meta">
+      <article>
+        <span>Total</span>
+        <strong>{{ totalCount() }}</strong>
+      </article>
+      <article>
+        <span>In progress</span>
+        <strong>{{ inFlightCount() }}</strong>
+      </article>
+      <article>
+        <span>Delivered</span>
+        <strong>{{ deliveredCount() }}</strong>
+      </article>
+      <article>
+        <span>Failed</span>
+        <strong>{{ failedCount() }}</strong>
+      </article>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <label class="search">
+      <span class="sr-only">Search messages</span>
+      <input
+        type="search"
+        [value]="query()"
+        (input)="onQueryInput($any($event.target).value)"
+        placeholder="Search number, sender, body, partner, or provider id"
+      />
+    </label>
+    <div class="chips" role="tablist" aria-label="Filter by status">
+      @for (filter of filters; track filter.id) {
+        <button
+          type="button"
+          role="tab"
+          class="chip"
+          [class.active]="statusFilter() === filter.id"
+          [attr.aria-selected]="statusFilter() === filter.id"
+          (click)="setStatus(filter.id)"
+        >
+          {{ filter.label }}
+        </button>
+      }
+      @if (auth.isPartner()) {
+        <span class="chip active">Your messages</span>
+      }
+    </div>
+    <button type="button" class="ghost" (click)="refresh()" [disabled]="loading()">Refresh</button>
+  </div>
+
+  @if (error() && !detailOpen()) {
+    <p class="banner bad" role="alert">{{ error() }}</p>
+  }
+
+  <div class="table-wrap">
+    <p-table
+      #dt
+      [value]="messages()"
+      dataKey="id"
+      [lazy]="true"
+      [paginator]="true"
+      [rows]="pageSize"
+      [totalRecords]="totalRecords()"
+      [loading]="loading()"
+      [rowsPerPageOptions]="pageSizeOptions"
+      [alwaysShowPaginator]="true"
+      [sortField]="'createdAt'"
+      [sortOrder]="-1"
+      [rowHover]="true"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="Showing {first} to {last} of {totalRecords} messages"
+      [tableStyle]="{ 'min-width': '64rem' }"
+      (onLazyLoad)="onLazyLoad($event)"
+    >
+      <ng-template #header>
+        <tr>
+          <th pSortableColumn="createdAt">Sent <p-sortIcon field="createdAt" /></th>
+          <th pSortableColumn="toAddr">To <p-sortIcon field="toAddr" /></th>
+          <th pSortableColumn="fromAddr">From <p-sortIcon field="fromAddr" /></th>
+          <th pSortableColumn="text">Message <p-sortIcon field="text" /></th>
+          @if (!auth.isPartner()) {
+            <th>Partner</th>
+          }
+          <th pSortableColumn="status">Status <p-sortIcon field="status" /></th>
+          <th pSortableColumn="cost">Cost <p-sortIcon field="cost" /></th>
+          <th></th>
+        </tr>
+      </ng-template>
+      <ng-template #body let-message>
+        <tr>
+          <td>
+            <strong>{{ message.createdAt ? (message.createdAt | date: 'medium') : '—' }}</strong>
+            @if (message.upstreamId) {
+              <small>{{ message.upstreamId }}</small>
+            }
+          </td>
+          <td>{{ message.toAddr }}</td>
+          <td>{{ message.fromAddr || '—' }}</td>
+          <td>
+            <span class="preview">{{ preview(message.text) }}</span>
+            @if (message.segments && message.segments > 1) {
+              <small>{{ message.segments }} segments</small>
+            }
+          </td>
+          @if (!auth.isPartner()) {
+            <td>
+              <strong>{{ message.partnerName || '—' }}</strong>
+              <small>{{ message.partnerCode || '' }}</small>
+            </td>
+          }
+          <td>
+            <span class="pill" [class.live]="statusClass(message.status) === 'live'" [class.bad]="statusClass(message.status) === 'bad'" [class.warn]="statusClass(message.status) === 'warn'">
+              {{ statusLabel(message.status) }}
+            </span>
+          </td>
+          <td>{{ formatCost(message.cost) }}</td>
+          <td class="actions">
+            <button type="button" class="link" (click)="openDetail(message)">Details</button>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template #emptymessage>
+        <tr>
+          <td [attr.colspan]="auth.isPartner() ? 7 : 8">
+            <div class="empty-inline">
+              <h3>{{ query() ? 'No matches' : 'No messages yet' }}</h3>
+              <p>
+                {{
+                  query()
+                    ? 'Try a different search term or status filter.'
+                    : auth.isPartner()
+                      ? 'Outbound SMS from your organisation will appear here as you send traffic through the gateway.'
+                      : 'Outbound SMS will appear here as partners send traffic through the gateway.'
+                }}
+              </p>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+</section>
+
+@if (detailOpen() && selected(); as message) {
+  <div class="overlay" (click)="closeDetail()">
+    <section class="sheet" role="dialog" aria-modal="true" aria-label="Message details" (click)="$event.stopPropagation()">
+      <header>
+        <p class="kicker">Message</p>
+        <h3>{{ message.toAddr }}</h3>
+        <p>{{ message.createdAt ? (message.createdAt | date: 'medium') : 'Outbound SMS' }}</p>
+      </header>
+      <div class="detail-grid">
+        <label class="field">
+          <span>Status</span>
+          <p>
+            <span class="pill" [class.live]="statusClass(message.status) === 'live'" [class.bad]="statusClass(message.status) === 'bad'" [class.warn]="statusClass(message.status) === 'warn'">
+              {{ statusLabel(message.status) }}
+            </span>
+          </p>
+        </label>
+        <div class="split">
+          <label class="field">
+            <span>From</span>
+            <p>{{ message.fromAddr || '—' }}</p>
+          </label>
+          <label class="field">
+            <span>To</span>
+            <p>{{ message.toAddr }}</p>
+          </label>
+        </div>
+        <label class="field">
+          <span>Body</span>
+          <p class="message-body">{{ message.text }}</p>
+        </label>
+        <div class="split">
+          @if (!auth.isPartner()) {
+            <label class="field">
+              <span>Partner</span>
+              <p>{{ message.partnerName || '—' }}</p>
+              <small>{{ message.partnerCode || '' }}</small>
+            </label>
+          }
+          <label class="field">
+            <span>Cost</span>
+            <p>{{ formatCost(message.cost) }}</p>
+          </label>
+        </div>
+        <div class="split">
+          <label class="field">
+            <span>Encoding</span>
+            <p>{{ message.encoding || '—' }}</p>
+          </label>
+          <label class="field">
+            <span>Segments</span>
+            <p>{{ message.segments ?? '—' }}</p>
+          </label>
+        </div>
+        <label class="field">
+          <span>Provider id</span>
+          <p>{{ message.upstreamId || '—' }}</p>
+        </label>
+        @if (message.providerResponse) {
+          <label class="field">
+            <span>Provider response</span>
+            <p class="message-body">{{ message.providerResponse }}</p>
+          </label>
+        }
+      </div>
+      <div class="sheet-actions">
+        <button type="button" class="ghost" (click)="closeDetail()">Close</button>
+      </div>
+    </section>
+  </div>
+}

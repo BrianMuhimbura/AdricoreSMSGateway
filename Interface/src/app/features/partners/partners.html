@@ -1,0 +1,217 @@
+<section class="page">
+  <div class="hero">
+    <div>
+      <p class="kicker">Tenancy</p>
+      <h2>Partners</h2>
+      <p>Create operator accounts, keep contact details current, and deactivate partners that should no longer send traffic.</p>
+    </div>
+    <div class="hero-meta">
+      <article>
+        <span>Total</span>
+        <strong>{{ totalCount() }}</strong>
+      </article>
+      <article>
+        <span>Active</span>
+        <strong>{{ activeCount() }}</strong>
+      </article>
+      <article>
+        <span>Inactive</span>
+        <strong>{{ inactiveCount() }}</strong>
+      </article>
+      <button type="button" class="primary" (click)="openCreate()">New partner</button>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <label class="search">
+      <span class="sr-only">Search partners</span>
+      <input
+        type="search"
+        [value]="query()"
+        (input)="onQueryInput($any($event.target).value)"
+        placeholder="Search name, code, email, or phone"
+      />
+    </label>
+    <div class="chips" role="tablist" aria-label="Filter by status">
+      @for (filter of filters; track filter.id) {
+        <button
+          type="button"
+          role="tab"
+          class="chip"
+          [class.active]="statusFilter() === filter.id"
+          [attr.aria-selected]="statusFilter() === filter.id"
+          (click)="setStatus(filter.id)"
+        >
+          {{ filter.label }}
+        </button>
+      }
+    </div>
+    <button type="button" class="ghost" (click)="refresh()" [disabled]="loading()">Refresh</button>
+  </div>
+
+  @if (notice()) {
+    <p class="banner ok" role="status">{{ notice() }}</p>
+  }
+  @if (error() && !editorOpen()) {
+    <p class="banner bad" role="alert">{{ error() }}</p>
+  }
+
+  <div class="table-wrap">
+    <p-table
+      #dt
+      [value]="partners()"
+      dataKey="id"
+      [lazy]="true"
+      [paginator]="true"
+      [rows]="pageSize"
+      [totalRecords]="totalRecords()"
+      [loading]="loading()"
+      [rowsPerPageOptions]="pageSizeOptions"
+      [alwaysShowPaginator]="true"
+      [sortField]="'createdAt'"
+      [sortOrder]="-1"
+      [rowHover]="true"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="Showing {first} to {last} of {totalRecords} partners"
+      [tableStyle]="{ 'min-width': '56rem' }"
+      (onLazyLoad)="onLazyLoad($event)" appendTo="body"
+     >
+      <ng-template #header>
+        <tr>
+          <th pSortableColumn="name">Partner <p-sortIcon field="name" /></th>
+          <th pSortableColumn="email">Contact <p-sortIcon field="email" /></th>
+          <th pSortableColumn="currency">Currency <p-sortIcon field="currency" /></th>
+          <th pSortableColumn="status">Status <p-sortIcon field="status" /></th>
+          <th pSortableColumn="updatedAt">Updated <p-sortIcon field="updatedAt" /></th>
+          <th></th>
+        </tr>
+      </ng-template>
+      <ng-template #body let-partner>
+        <tr [class.dim]="partner.status !== 'active'">
+          <td>
+            <strong>{{ partner.name }}</strong>
+            <small>{{ partner.partnerCode }}</small>
+            @if (partner.parentPartnerName) {
+              <small>Parent: {{ partner.parentPartnerName }}</small>
+            }
+          </td>
+          <td>
+            <span>{{ partner.email || '—' }}</span>
+            <small>{{ partner.phone || 'No phone' }}</small>
+          </td>
+          <td>{{ partner.currency }}</td>
+          <td><span class="pill" [class.live]="partner.status === 'active'">{{ partner.status }}</span></td>
+          <td>{{ partner.updatedAt ? (partner.updatedAt | date: 'mediumDate') : '—' }}</td>
+          <td class="actions">
+            <button type="button" class="link" (click)="openEdit(partner)">Edit</button>
+            @if (partner.status === 'active') {
+              <button type="button" class="link danger" (click)="askDeactivate(partner)">Deactivate</button>
+            } @else {
+              <button type="button" class="link" (click)="reactivate(partner)" [disabled]="saving()">Reactivate</button>
+            }
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template #emptymessage>
+        <tr>
+          <td colspan="6">
+            <div class="empty-inline">
+              <h3>{{ query() ? 'No matches' : 'No partners yet' }}</h3>
+              <p>{{ query() ? 'Try a different search term.' : 'Add the first operator to start routing SMS traffic.' }}</p>
+              @if (!query() && statusFilter() === 'all') {
+                <button type="button" class="primary" (click)="openCreate()">Create partner</button>
+              }
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+</section>
+
+@if (editorOpen()) {
+  <div class="overlay" (click)="closeEditor()">
+    <section class="sheet" role="dialog" aria-modal="true" [attr.aria-label]="editing() ? 'Edit partner' : 'Create partner'" (click)="$event.stopPropagation()">
+      <header>
+        <p class="kicker">{{ editing() ? 'Edit' : 'Create' }}</p>
+        <h3>{{ editing() ? editing()!.name : 'New partner' }}</h3>
+      </header>
+
+      @if (error() && editorOpen()) {
+        <p class="banner bad" role="alert">{{ error() }}</p>
+      }
+
+      <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+        <label class="field">
+          <span>Name</span>
+          <input type="text" formControlName="name" placeholder="Acme Mobile" />
+          @if (form.controls.name.touched && form.controls.name.invalid) {
+            <small>Name is required.</small>
+          }
+        </label>
+        <div class="split">
+          <label class="field">
+            <span>Email</span>
+            <input type="email" formControlName="email" placeholder="ops@partner.com" />
+            @if (form.controls.email.hasError('email')) {
+              <small>Enter a valid email.</small>
+            }
+          </label>
+          <label class="field">
+            <span>Phone</span>
+            <input type="tel" formControlName="phone" placeholder="+256700000000" />
+          </label>
+        </div>
+        <div class="split">
+          <label class="field">
+            <span>Currency</span>
+            <select formControlName="currency">
+              @for (code of currencies; track code) {
+                <option [value]="code">{{ code }}</option>
+              }
+            </select>
+          </label>
+          <label class="field">
+            <span>Parent partner</span>
+            <select formControlName="parentPartnerId">
+              <option value="">None</option>
+              @for (parent of parentChoices(); track parent.id) {
+                <option [value]="parent.id">{{ parent.name }} ({{ parent.partnerCode }})</option>
+              }
+            </select>
+          </label>
+        </div>
+        @if (editing()) {
+          <label class="field">
+            <span>Status</span>
+            <select formControlName="status">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </label>
+        }
+        <div class="sheet-actions">
+          <button type="button" class="ghost" (click)="closeEditor()" [disabled]="saving()">Cancel</button>
+          <button type="submit" class="primary" [disabled]="saving()">
+            {{ saving() ? 'Saving…' : editing() ? 'Save changes' : 'Create partner' }}
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+}
+
+@if (confirmOpen()) {
+  <div class="overlay" (click)="closeConfirm()">
+    <section class="sheet confirm" role="dialog" aria-modal="true" aria-label="Deactivate partner" (click)="$event.stopPropagation()">
+      <h3>Deactivate {{ pending()?.name }}?</h3>
+      <p>They will keep their partner code, but the gateway will reject new send requests until you reactivate them.</p>
+      <div class="sheet-actions">
+        <button type="button" class="ghost" (click)="closeConfirm()" [disabled]="saving()">Cancel</button>
+        <button type="button" class="danger-btn" (click)="confirmDeactivate()" [disabled]="saving()">
+          {{ saving() ? 'Working…' : 'Deactivate' }}
+        </button>
+      </div>
+    </section>
+  </div>
+}

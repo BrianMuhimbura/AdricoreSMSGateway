@@ -23,14 +23,14 @@ public class ApplicationConf implements UserDetailsService {
     private final SystemPermissionRepository permissionRepository;
     @Override
     public SystemUserModel loadUserByUsername(String username) throws UsernameNotFoundException {
-        Optional<SystemUserModel> usersModel = userRepository.findFirstByUsernameOrEmail(username, username);
-        if (usersModel.isPresent()) {
-            SystemUserModel user = usersModel.get();
+        SystemUserModel usersModel = userRepository.findFirstByUsername(username);
+        if (usersModel !=null) {
+            SystemUserModel user = usersModel;
             // if the user account is not activated, then we eject from here.
             if (user.getIsActive() == Boolean.FALSE) {
                 throw new IllegalStateException("User account is not active");
             }
-            Collection<SimpleGrantedAuthority> authorities = usersModel.get().getAuthorities();
+            Collection<SimpleGrantedAuthority> authorities = usersModel.getAuthorities();
             // get the user permissions
             Collection<SystemRolePermissionAssignmentModel> permissions = permissionAssignmentRepository.findAllByRoleCode(user.getRoleCode());
             for (SystemRolePermissionAssignmentModel permissionAssignmentModel: permissions) {

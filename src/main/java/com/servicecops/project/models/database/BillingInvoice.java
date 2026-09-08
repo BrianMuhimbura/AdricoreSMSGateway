@@ -1,18 +1,24 @@
 package com.servicecops.project.models.database;
 
 import jakarta.persistence.*;
-import java.time.Instant;
-import java.util.UUID;
+import lombok.Getter;
+import lombok.Setter;
+
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.UUID;
 
 @Entity
+@Getter
+@Setter
 @Table(name = "billing_invoices")
 public class BillingInvoice {
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partner_id")
     private Partner partner;
 
@@ -20,7 +26,7 @@ public class BillingInvoice {
     private BigDecimal amount;
 
     @Column(name = "due_date")
-    private java.time.LocalDate dueDate;
+    private LocalDate dueDate;
 
     @Column(nullable = false)
     private String status;
@@ -30,7 +36,5 @@ public class BillingInvoice {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
-
-    // Getters and setters
 }
 

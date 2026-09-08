@@ -1,0 +1,233 @@
+<section class="page">
+  <div class="hero">
+    <div>
+      <p class="kicker">Access</p>
+      <h2>Users</h2>
+      <p>Create operator accounts, assign roles, and deactivate people who should no longer reach the gateway.</p>
+      @if (auth.isPartner()) {
+        <p>You can only manage users that belong to your organisation.</p>
+      }
+    </div>
+    <div class="hero-meta">
+      <article>
+        <span>Total</span>
+        <strong>{{ totalCount() }}</strong>
+      </article>
+      <article>
+        <span>Active</span>
+        <strong>{{ activeCount() }}</strong>
+      </article>
+      <article>
+        <span>Inactive</span>
+        <strong>{{ inactiveCount() }}</strong>
+      </article>
+      <button type="button" class="primary" (click)="openCreate()">New user</button>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <label class="search">
+      <span class="sr-only">Search users</span>
+      <input
+        type="search"
+        [value]="query()"
+        (input)="onQueryInput($any($event.target).value)"
+        placeholder="Search name, username, email, or role"
+      />
+    </label>
+    <div class="chips" role="tablist" aria-label="Filter by status">
+      @for (filter of filters; track filter.id) {
+        <button
+          type="button"
+          role="tab"
+          class="chip"
+          [class.active]="statusFilter() === filter.id"
+          [attr.aria-selected]="statusFilter() === filter.id"
+          (click)="setStatus(filter.id)"
+        >
+          {{ filter.label }}
+        </button>
+      }
+      @if (auth.isPartner()) {
+        <span class="chip active">Your team</span>
+      }
+    </div>
+    <button type="button" class="ghost" (click)="refresh()" [disabled]="loading()">Refresh</button>
+  </div>
+
+  @if (notice()) {
+    <p class="banner ok" role="status">{{ notice() }}</p>
+  }
+  @if (error() && !editorOpen()) {
+    <p class="banner bad" role="alert">{{ error() }}</p>
+  }
+
+  <div class="table-wrap">
+    <p-table
+      #dt
+      [value]="users()"
+      dataKey="id"
+      [lazy]="true"
+      [paginator]="true"
+      [rows]="pageSize"
+      [totalRecords]="totalRecords()"
+      [loading]="loading()"
+      [rowsPerPageOptions]="pageSizeOptions"
+      [alwaysShowPaginator]="true"
+      [sortField]="'createdAt'"
+      [sortOrder]="-1"
+      [rowHover]="true"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="Showing {first} to {last} of {totalRecords} users"
+      [tableStyle]="{ 'min-width': '56rem' }"
+      (onLazyLoad)="onLazyLoad($event)"
+    >
+      <ng-template #header>
+        <tr>
+          <th pSortableColumn="firstName">User <p-sortIcon field="firstName" /></th>
+          <th pSortableColumn="email">Email <p-sortIcon field="email" /></th>
+          <th pSortableColumn="roleCode">Role <p-sortIcon field="roleCode" /></th>
+          <th pSortableColumn="isActive">Status <p-sortIcon field="isActive" /></th>
+          <th pSortableColumn="lastLoggedInAt">Last login <p-sortIcon field="lastLoggedInAt" /></th>
+          <th></th>
+        </tr>
+      </ng-template>
+      <ng-template #body let-user>
+        <tr [class.dim]="user.isActive === false">
+          <td>
+            <strong>{{ displayName(user) }}</strong>
+            <small>{{ user.username }}</small>
+          </td>
+          <td>{{ user.email || '—' }}</td>
+          <td>{{ roleLabel(user.roleCode) }}</td>
+          <td><span class="pill" [class.live]="user.isActive !== false">{{ user.isActive === false ? 'inactive' : 'active' }}</span></td>
+          <td>{{ user.lastLoggedInAt ? (user.lastLoggedInAt | date: 'mediumDate') : 'Never' }}</td>
+          <td class="actions">
+            <button type="button" class="link" (click)="openEdit(user)">Edit</button>
+            @if (user.isActive !== false) {
+              <button type="button" class="link danger" (click)="askDeactivate(user)" [disabled]="isSelf(user)">
+                Deactivate
+              </button>
+            } @else {
+              <button type="button" class="link" (click)="reactivate(user)" [disabled]="saving()">Reactivate</button>
+            }
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template #emptymessage>
+        <tr>
+          <td colspan="6">
+            <div class="empty-inline">
+              <h3>{{ query() ? 'No matches' : 'No users yet' }}</h3>
+              <p>{{ query() ? 'Try a different search term.' : auth.isPartner() ? 'Add the first person who can sign in for your organisation.' : 'Add the first operator who can sign in to this console.' }}</p>
+              @if (!query() && statusFilter() === 'all') {
+                <button type="button" class="primary" (click)="openCreate()">Create user</button>
+              }
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+</section>
+
+@if (editorOpen()) {
+  <div class="overlay" (click)="closeEditor()">
+    <section class="sheet" role="dialog" aria-modal="true" [attr.aria-label]="editing() ? 'Edit user' : 'Create user'" (click)="$event.stopPropagation()">
+      <header>
+        <p class="kicker">{{ editing() ? 'Edit' : 'Create' }}</p>
+        <h3>{{ editing() ? displayName(editing()!) : 'New user' }}</h3>
+      </header>
+
+      @if (error() && editorOpen()) {
+        <p class="banner bad" role="alert">{{ error() }}</p>
+      }
+
+      <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+        <div class="split">
+          <label class="field">
+            <span>First name</span>
+            <input type="text" formControlName="firstName" placeholder="Jane" />
+            @if (form.controls.firstName.touched && form.controls.firstName.invalid) {
+              <small>First name is required.</small>
+            }
+          </label>
+          <label class="field">
+            <span>Last name</span>
+            <input type="text" formControlName="lastName" placeholder="Okello" />
+            @if (form.controls.lastName.touched && form.controls.lastName.invalid) {
+              <small>Last name is required.</small>
+            }
+          </label>
+        </div>
+        <div class="split">
+          <label class="field">
+            <span>Username</span>
+            <input type="text" formControlName="username" placeholder="jane.okello" autocomplete="off" />
+            @if (form.controls.username.touched && form.controls.username.invalid) {
+              <small>Username is required.</small>
+            }
+          </label>
+          <label class="field">
+            <span>Email</span>
+            <input type="email" formControlName="email" placeholder="jane@adricore.com" />
+            @if (form.controls.email.touched && form.controls.email.invalid) {
+              <small>Enter a valid email.</small>
+            }
+          </label>
+        </div>
+        <div class="split">
+          <label class="field">
+            <span>Role</span>
+            <select formControlName="roleCode">
+              <option value="" disabled>Select a role</option>
+              @for (role of roles(); track role.roleCode) {
+                <option [value]="role.roleCode">{{ role.roleName }}</option>
+              }
+            </select>
+            @if (form.controls.roleCode.touched && form.controls.roleCode.invalid) {
+              <small>Role is required.</small>
+            }
+          </label>
+          @if (editing()) {
+            <label class="field">
+              <span>Status</span>
+              <select formControlName="isActive">
+                <option [ngValue]="true">Active</option>
+                <option [ngValue]="false">Inactive</option>
+              </select>
+            </label>
+          }
+        </div>
+        <label class="field">
+          <span>{{ editing() ? 'New password' : 'Password' }}</span>
+          <input type="password" formControlName="password" [placeholder]="editing() ? 'Leave blank to keep current password' : 'At least 8 characters'" autocomplete="new-password" />
+          @if (form.controls.password.touched && form.controls.password.invalid) {
+            <small>Password must be at least 8 characters long.</small>
+          }
+        </label>
+        <div class="sheet-actions">
+          <button type="button" class="ghost" (click)="closeEditor()" [disabled]="saving()">Cancel</button>
+          <button type="submit" class="primary" [disabled]="saving()">
+            {{ saving() ? 'Saving…' : editing() ? 'Save changes' : 'Create user' }}
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+}
+
+@if (confirmOpen()) {
+  <div class="overlay" (click)="closeConfirm()">
+    <section class="sheet confirm" role="dialog" aria-modal="true" aria-label="Deactivate user" (click)="$event.stopPropagation()">
+      <h3>Deactivate {{ pending() ? displayName(pending()!) : 'this user' }}?</h3>
+      <p>They will keep their account, but they will not be able to sign in until you reactivate them.</p>
+      <div class="sheet-actions">
+        <button type="button" class="ghost" (click)="closeConfirm()" [disabled]="saving()">Cancel</button>
+        <button type="button" class="danger-btn" (click)="confirmDeactivate()" [disabled]="saving()">
+          {{ saving() ? 'Working…' : 'Deactivate' }}
+        </button>
+      </div>
+    </section>
+  </div>
+}

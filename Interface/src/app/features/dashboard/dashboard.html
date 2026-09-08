@@ -1,0 +1,92 @@
+<section class="dash">
+  <div class="intro">
+    <p class="kicker">Overview</p>
+    <h2>Hello, {{ auth.displayName() }}</h2>
+    <p>
+      @if (isPartnerUser()) {
+        Review your organisation's traffic, users, and credit activity.
+      } @else {
+        Use the console to manage routing partners, inspect traffic, and keep the gateway ready for send requests.
+      }
+    </p>
+  </div>
+
+  <div class="stats">
+    @for (card of visibleCards(); track card.label) {
+      <article>
+        <span>{{ card.label }}</span>
+        <strong>{{ card.value }}</strong>
+        <small>{{ card.hint }}</small>
+        @if (card.link) {
+          <a [routerLink]="card.link">{{ card.linkLabel || 'Open' }}</a>
+        }
+      </article>
+    }
+    @if (canViewAudit()) {
+      <article>
+        <span>Audit events</span>
+        <strong>{{ auditLoading() ? '…' : auditTotal() }}</strong>
+        <small>{{ auditToday() }} today · {{ auditFailed() }} failed</small>
+        <a routerLink="/audit-logs">View audit log</a>
+      </article>
+    }
+    @if (isPartnerUser()) {
+      <article>
+        <span>Available credit</span>
+        <strong>{{ formatMoney(partner()?.credit?.available ?? partner()?.credit?.balance, partner()?.credit?.currency) }}</strong>
+        <small>{{ partner()?.partnerCode || 'Your operator account' }}</small>
+        <a routerLink="/profile">View profile</a>
+      </article>
+    }
+  </div>
+
+  @if (canViewAudit()) {
+    <section class="activity">
+      <header>
+        <div>
+          <p class="kicker">Security</p>
+          <h3>Recent audit activity</h3>
+        </div>
+        <a routerLink="/audit-logs">Open audit log</a>
+      </header>
+
+      @if (auditError()) {
+        <p class="banner bad" role="alert">{{ auditError() }}</p>
+      } @else if (auditLoading() && recentLogs().length === 0) {
+        <p class="muted">Loading recent writes…</p>
+      } @else if (recentLogs().length === 0) {
+        <p class="muted">No write actions have been recorded yet.</p>
+      } @else {
+        <div class="activity-table">
+          <table>
+            <thead>
+              <tr>
+                <th>When</th>
+                <th>Action</th>
+                <th>Actor</th>
+                <th>Result</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (log of recentLogs(); track log.id) {
+                <tr>
+                  <td>{{ log.createdAt ? (log.createdAt | date: 'short') : '—' }}</td>
+                  <td>
+                    <strong>{{ actionLabel(log.action) }}</strong>
+                    <small>{{ log.resourceType }}{{ log.resourceId ? ' · ' + log.resourceId : '' }}</small>
+                  </td>
+                  <td>{{ log.actorUsername || log.actorId || 'system' }}</td>
+                  <td>
+                    <span class="pill" [class.live]="log.success" [class.bad]="log.success === false">
+                      {{ log.success === false ? 'Failed' : 'Succeeded' }}
+                    </span>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+</section>

@@ -1,10 +1,14 @@
 package com.servicecops.project.models.database;
 
 import jakarta.persistence.*;
-import java.time.Instant;
-import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Table(name = "credit_transactions")
@@ -12,15 +16,16 @@ import lombok.Setter;
 @Setter
 public class CreditTransaction {
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "partner_id")
     private Partner partner;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(nullable = false, columnDefinition = "credit_tx_type")
     private CreditTxType type;
 
     @Column(nullable = false)
@@ -31,13 +36,17 @@ public class CreditTransaction {
 
     private String reference;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    private String meta;
+    private java.util.Map<String, Object> meta;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    // Getters and setters
 
     public enum CreditTxType {
         TOPUP, ALLOCATE, CONSUMPTION, REFUND, REVERSAL
     }
 }
+

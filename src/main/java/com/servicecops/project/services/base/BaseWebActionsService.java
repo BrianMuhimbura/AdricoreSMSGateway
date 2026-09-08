@@ -72,6 +72,10 @@ public abstract class BaseWebActionsService implements BaseWebActionsImpl {
      * @return user details
      */
     public UserDetails getContextUserDetails(){
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof UserDetails details) {
+            return details;
+        }
         return authenticatedUser();
     }
 
@@ -102,8 +106,13 @@ public abstract class BaseWebActionsService implements BaseWebActionsImpl {
     public SystemUserModel authenticatedUser(){
         if (Boolean.TRUE.equals(isAuthenticated())){
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            UserDetails userDetails = (UserDetails) authentication.getPrincipal();
-            return userRepository.findFirstByUsername(userDetails.getUsername());
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof SystemUserModel model) {
+                return model;
+            }
+            UserDetails userDetails = (UserDetails) principal;
+            return userRepository.findFirstByUsernameOrEmail(userDetails.getUsername(), userDetails.getUsername())
+                    .orElseThrow(() -> new IllegalStateException("User not found"));
         }
         throw new IllegalArgumentException("AUTHENTICATION REQUIRED");
     }
@@ -131,7 +140,7 @@ public abstract class BaseWebActionsService implements BaseWebActionsImpl {
      * @param username Optional - If given, it will override using the logged-in user but instead use the user with this username
      * @return Boolean
      */
-    public Boolean can(String permission, @Nullable String username){
+    public Boolean can(String username, @Nullable String permission){
         UserDetails userDetails;
         if (username != null){
             userDetails = userDetailService.loadUserByUsername(username);

@@ -12,7 +12,7 @@ import lombok.Setter;
 @Setter
 public class CreditAccount {
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @OneToOne

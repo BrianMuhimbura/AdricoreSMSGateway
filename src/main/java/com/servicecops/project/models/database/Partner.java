@@ -3,6 +3,8 @@ package com.servicecops.project.models.database;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -13,7 +15,7 @@ import java.util.UUID;
 @Table(name = "partners")
 public class Partner {
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @ManyToOne
@@ -39,7 +41,8 @@ public class Partner {
     @Column(nullable = false)
     private String currency;
 
-    @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "price_profile", columnDefinition = "jsonb")
     private String priceProfile;
 
     @Column(name = "created_at", nullable = false)

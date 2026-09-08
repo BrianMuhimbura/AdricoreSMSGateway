@@ -1,0 +1,97 @@
+<section class="page">
+  @if (error()) {
+    <p class="banner bad" role="alert">{{ error() }}</p>
+  }
+
+  @if (loading() && !partner()) {
+    <p class="muted">Loading partner profile…</p>
+  } @else if (partner(); as partner) {
+    <div class="hero">
+      <div>
+        <p class="kicker">Partner</p>
+        <h2>{{ partner.name }}</h2>
+        <p>{{ partner.partnerCode }} · your operator account and credit balances.</p>
+      </div>
+      <div class="hero-meta">
+        <article>
+          <span>Status</span>
+          <strong>
+            <span class="pill" [class.live]="partner.status === 'active'" [class.bad]="partner.status === 'inactive'">
+              {{ partner.status }}
+            </span>
+          </strong>
+        </article>
+        <button type="button" class="ghost" (click)="refresh()" [disabled]="loading()">Refresh</button>
+      </div>
+    </div>
+
+    <div class="stats">
+      <article>
+        <span>Available</span>
+        <strong>{{ formatMoney(credit()?.available ?? credit()?.balance, credit()?.currency) }}</strong>
+        <small>Ready to send SMS</small>
+      </article>
+      <article>
+        <span>Reserved</span>
+        <strong>{{ formatMoney(credit()?.reserved, credit()?.currency) }}</strong>
+        <small>Held for in-flight traffic</small>
+      </article>
+      <article>
+        <span>Total</span>
+        <strong>{{ formatMoney(credit()?.total, credit()?.currency) }}</strong>
+        <small>{{ credit()?.currency || partner.currency }} credit account</small>
+      </article>
+    </div>
+
+    <section class="card details">
+      <header>
+        <p class="kicker">Account</p>
+        <h3>Partner details</h3>
+      </header>
+      <dl>
+        <div>
+          <dt>Partner name</dt>
+          <dd>{{ partner.name }}</dd>
+        </div>
+        <div>
+          <dt>Partner code</dt>
+          <dd>{{ partner.partnerCode }}</dd>
+        </div>
+        <div>
+          <dt>Email</dt>
+          <dd>{{ partner.email || '—' }}</dd>
+        </div>
+        <div>
+          <dt>Phone</dt>
+          <dd>{{ partner.phone || '—' }}</dd>
+        </div>
+        <div>
+          <dt>Currency</dt>
+          <dd>{{ partner.currency }}</dd>
+        </div>
+        <div>
+          <dt>Organization</dt>
+          <dd>{{ partner.organizationName || '—' }}</dd>
+        </div>
+        <div>
+          <dt>Parent partner</dt>
+          <dd>{{ partner.parentPartnerName || '—' }}</dd>
+        </div>
+        <div>
+          <dt>Created</dt>
+          <dd>{{ partner.createdAt ? (partner.createdAt | date: 'medium') : '—' }}</dd>
+        </div>
+        <div>
+          <dt>Balance updated</dt>
+          <dd>
+            @if (credit()?.updatedAt; as updated) {
+              {{ updated | date: 'medium' }}
+            } @else {
+              —
+            }
+          </dd>
+        </div>
+      </dl>
+    </section>
+  }
+</section>

@@ -8,10 +8,12 @@ import lombok.NoArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.UUID;
 
 @Entity
 @Data
@@ -30,6 +32,7 @@ public class SystemUserModel implements UserDetails {
     @Basic
     @Column(name = "last_name")
     private String lastName;
+    @JsonIgnore
     @Basic
     @Column(name = "password")
     private String password;
@@ -51,11 +54,17 @@ public class SystemUserModel implements UserDetails {
     @Basic
     @Column(name = "is_active")
     private Boolean isActive;
+    @Column(name = "partner_id")
+    private UUID partnerId;
+    @Column(name = "must_change_password")
+    @Builder.Default
+    private Boolean mustChangePassword = Boolean.FALSE;
 
     @Transient
     private Collection<SimpleGrantedAuthority> authorities = new ArrayList<>();
 
     @Override
+    @JsonIgnore
     public String getPassword() {
         return password;
     }

@@ -19,6 +19,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.ReflectionUtils;
 
 import javax.annotation.PostConstruct;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -31,6 +32,10 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class SetUp {
     private static final String ADMINISTRATOR = "ADMINISTRATOR";
+    private static final String PARTNER_ADMIN = "PARTNER_ADMIN";
+    private static final String PARTNER_PORTAL = "PARTNER_PORTAL";
+    private static final String SASULA = "SASULA";
+    private static final String SASULA_INTEGRATION = "SASULA_INTEGRATION";
     // Turn on or off system domains
     @Value("${USE_DOMAINS:true}")
     Boolean useDomains;
@@ -114,6 +119,8 @@ public class SetUp {
         }
         // assign the admin all the permissions they are supposed to ship with.
         setUpAdminPerms();
+        setupPartnerRole();
+        setupSasulaRole();
     }
 
     /**
@@ -135,5 +142,49 @@ public class SetUp {
                 }
             }
         });
+    }
+
+    private void setupPartnerRole() {
+        Optional<SystemRoleModel> existing = roleRepository.findFirstByRoleCode(PARTNER_ADMIN);
+        if (existing.isEmpty()) {
+            roleRepository.save(SystemRoleModel.builder()
+                    .roleName("Partner Admin")
+                    .roleCode(PARTNER_ADMIN)
+                    .roleDomain(AppDomains.CLIENT_SIDE)
+                    .build());
+            log.info("Added {} role", PARTNER_ADMIN);
+        }
+        for (String permission : List.of(PARTNER_PORTAL, "VIEW_MESSAGES", "VIEW_AUDIT_LOGS", "MANAGE_USERS", "VIEW_TRANSACTIONS")) {
+            Optional<SystemRolePermissionAssignmentModel> assigned = permissionAssignmentRepository
+                    .findFirstByRoleCodeAndPermissionCode(PARTNER_ADMIN, permission);
+            if (assigned.isEmpty()) {
+                permissionAssignmentRepository.save(SystemRolePermissionAssignmentModel.builder()
+                        .roleCode(PARTNER_ADMIN)
+                        .permissionCode(permission)
+                        .build());
+                log.info("Assigned {} to {}", permission, PARTNER_ADMIN);
+            }
+        }
+    }
+
+    private void setupSasulaRole() {
+        Optional<SystemRoleModel> existing = roleRepository.findFirstByRoleCode(SASULA);
+        if (existing.isEmpty()) {
+            roleRepository.save(SystemRoleModel.builder()
+                    .roleName("Sasula Integration")
+                    .roleCode(SASULA)
+                    .roleDomain(AppDomains.BACK_OFFICE)
+                    .build());
+            log.info("Added {} role", SASULA);
+        }
+        Optional<SystemRolePermissionAssignmentModel> assigned = permissionAssignmentRepository
+                .findFirstByRoleCodeAndPermissionCode(SASULA, SASULA_INTEGRATION);
+        if (assigned.isEmpty()) {
+            permissionAssignmentRepository.save(SystemRolePermissionAssignmentModel.builder()
+                    .roleCode(SASULA)
+                    .permissionCode(SASULA_INTEGRATION)
+                    .build());
+            log.info("Assigned {} to {}", SASULA_INTEGRATION, SASULA);
+        }
     }
 }

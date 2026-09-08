@@ -1,21 +1,29 @@
 package com.servicecops.project.models.database;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
+@Getter
+@Setter
 @Table(name = "audit_logs")
 public class AuditLog {
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(name = "actor_type")
     private String actorType;
 
     @Column(name = "actor_id")
-    private UUID actorId;
+    private String actorId;
 
     @Column(nullable = false)
     private String action;
@@ -24,14 +32,24 @@ public class AuditLog {
     private String resourceType;
 
     @Column(name = "resource_id")
-    private UUID resourceId;
+    private String resourceId;
 
+    @Column(name = "partner_id")
+    private UUID partnerId;
+
+    private Boolean success;
+
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    private String details;
+    private Map<String, Object> details;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    // Getters and setters
+    @PrePersist
+    void onCreate() {
+        if (createdAt == null) {
+            createdAt = Instant.now();
+        }
+    }
 }
-

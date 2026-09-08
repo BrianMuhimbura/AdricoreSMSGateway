@@ -95,10 +95,20 @@ public class AfricasTalkingSmsService {
         private String cost;
     }
 
+    public record SendResult(boolean success, String upstreamId, String providerStatus, String providerCost, String rawResponse) {
+        public static SendResult failed(String rawResponse) {
+            return new SendResult(false, null, null, null, rawResponse);
+        }
+    }
+
     public boolean sendSms(String phoneNumber, String message) {
+        return dispatch(phoneNumber, message).success();
+    }
+
+    public SendResult dispatch(String phoneNumber, String message) {
         if (!StringUtils.hasText(phoneNumber) || !StringUtils.hasText(message)) {
             log.error("Phone number or message empty - aborting sendSms");
-            return false;
+            return SendResult.failed(null);
         }
         try {
             String apiKey = properties.getApiKey();
@@ -109,7 +119,7 @@ public class AfricasTalkingSmsService {
             log.info("Africa's Talking configuration: username='{}', senderId='{}', endpoint='{}'", username, senderId, endpoint);
             if (!StringUtils.hasText(apiKey) || !StringUtils.hasText(username) || !StringUtils.hasText(endpoint)) {
                 log.error("Africa's Talking properties not fully configured (apiKey/username/endpoint missing)");
-                return false;
+                return SendResult.failed(null);
             }
 
             HttpHeaders headers = new HttpHeaders();
@@ -135,9 +145,10 @@ public class AfricasTalkingSmsService {
                 SmsMessageData data = response.getBody().getSmsMessageData();
                 if (data.getRecipients() == null || data.getRecipients().isEmpty()) {
                     log.error("No recipients returned in SMS response");
-                    return false;
+                    return SendResult.failed(stringify(response.getBody()));
                 }
                 boolean allSuccess = true;
+                Recipient first = data.getRecipients().get(0);
                 for (Recipient r : data.getRecipients()) {
                     log.info("Recipient number='{}' status='{}' messageId='{}' cost='{}'", r.getNumber(), r.getStatus(), r.getMessageId(), r.getCost());
                     if (!"Success".equalsIgnoreCase(r.getStatus())) {
@@ -149,17 +160,34 @@ public class AfricasTalkingSmsService {
                 } else {
                     log.warn("One or more recipients reported failure for phone {}", phoneNumber);
                 }
-                return allSuccess;
+                return new SendResult(
+                        allSuccess,
+                        first.getMessageId(),
+                        first.getStatus(),
+                        first.getCost(),
+                        stringify(response.getBody())
+                );
             } else {
                 log.error("Non-success HTTP status from Africa's Talking: {} body={}", status, response.getBody());
-                return false;
+                return SendResult.failed(stringify(response.getBody()));
             }
         } catch (HttpClientErrorException e) {
             log.error("HTTP error sending SMS: status={} body={} message={}", e.getStatusCode(), e.getResponseBodyAsString(), e.getMessage());
-            return false;
+            return SendResult.failed(e.getResponseBodyAsString());
         } catch (Exception e) {
             log.error("Unexpected error sending SMS to {}: {}", phoneNumber, e.getMessage(), e);
-            return false;
+            return SendResult.failed(e.getMessage());
+        }
+    }
+
+    private String stringify(Object value) {
+        if (value == null) {
+            return null;
+        }
+        try {
+            return com.alibaba.fastjson2.JSON.toJSONString(value);
+        } catch (Exception ignored) {
+            return String.valueOf(value);
         }
     }
 }

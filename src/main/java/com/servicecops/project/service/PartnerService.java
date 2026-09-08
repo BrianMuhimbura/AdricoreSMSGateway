@@ -22,7 +22,12 @@ public class PartnerService {
     public void deleteById(UUID id) { repository.deleteById(id); }
 
     public Optional<Partner> findByPartnerCode(String partnerCode) {
-        return repository.findByPartnerCode(partnerCode);
+        if (partnerCode == null || partnerCode.isBlank()) {
+            return Optional.empty();
+        }
+        String code = partnerCode.trim();
+        return repository.findByPartnerCode(code)
+                .or(() -> repository.findByPartnerCodeIgnoreCase(code));
     }
 }
 

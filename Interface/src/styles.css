@@ -1,0 +1,81 @@
+@import 'tailwindcss';
+@import 'primeicons/primeicons.css';
+@import 'font-awesome/css/font-awesome.css';
+
+@theme {
+  --font-sans: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  --color-navy: #0a2248;
+  --color-navy-deep: #061530;
+  --color-navy-soft: #14305f;
+  --color-teal: #2bbfc4;
+  --color-teal-dark: #1ea3a8;
+  --color-ink: #1a2744;
+  --color-muted: #6b7a90;
+  --color-line: #d9e2ee;
+  --color-page: #eef3f8;
+}
+
+:root {
+  --shadow-card: 0 18px 40px rgba(10, 34, 72, 0.08);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  background: var(--color-page);
+}
+
+html,
+body,
+app-root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--color-teal);
+  outline-offset: 3px;
+}
+
+.p-datatable {
+  font-size: 0.95rem;
+}
+
+.p-datatable .p-datatable-thead > tr > th,
+.p-datatable .p-datatable-tbody > tr > td {
+  padding: 0.9rem 1rem;
+}
+
+.p-datatable .p-datatable-thead > tr > th {
+  background: #f8fafc;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.p-datatable .p-datatable-tbody > tr > td {
+  vertical-align: top;
+}
+
+.p-paginator {
+  border: 0;
+  padding: 0.7rem 0.85rem;
+  color: var(--color-muted);
+}

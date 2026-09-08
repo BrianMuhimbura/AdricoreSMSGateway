@@ -1,0 +1,134 @@
+<section class="page">
+  <div class="hero">
+    <div>
+      <p class="kicker">Billing</p>
+      <h2>Transactions</h2>
+      <p>Inspect credit top-ups, consumption, refunds, and the running balance after each movement.</p>
+      @if (auth.isPartner()) {
+        <p>Showing only credit movements for your organisation.</p>
+      }
+    </div>
+    <div class="hero-meta">
+      <article>
+        <span>Total</span>
+        <strong>{{ totalCount() }}</strong>
+      </article>
+      <article>
+        <span>Top ups</span>
+        <strong>{{ topupCount() }}</strong>
+      </article>
+      <article>
+        <span>Consumption</span>
+        <strong>{{ consumptionCount() }}</strong>
+      </article>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <label class="search">
+      <span class="sr-only">Search transactions</span>
+      <input
+        type="search"
+        [value]="query()"
+        (input)="onQueryInput($any($event.target).value)"
+        [placeholder]="auth.isPartner() ? 'Search reference' : 'Search reference, partner, or code'"
+      />
+    </label>
+    <div class="chips" role="tablist" aria-label="Filter by type">
+      @for (filter of filters; track filter.id) {
+        <button
+          type="button"
+          role="tab"
+          class="chip"
+          [class.active]="statusFilter() === filter.id"
+          [attr.aria-selected]="statusFilter() === filter.id"
+          (click)="setStatus(filter.id)"
+        >
+          {{ filter.label }}
+        </button>
+      }
+      @if (auth.isPartner()) {
+        <span class="chip active">Your transactions</span>
+      }
+    </div>
+    <button type="button" class="ghost" (click)="refresh()" [disabled]="loading()">Refresh</button>
+  </div>
+
+  @if (error()) {
+    <p class="banner bad" role="alert">{{ error() }}</p>
+  }
+
+  <div class="table-wrap">
+    <p-table
+      #dt
+      [value]="transactions()"
+      dataKey="id"
+      [lazy]="true"
+      [paginator]="true"
+      [rows]="pageSize"
+      [totalRecords]="totalRecords()"
+      [loading]="loading()"
+      [rowsPerPageOptions]="pageSizeOptions"
+      [alwaysShowPaginator]="true"
+      [sortField]="'createdAt'"
+      [sortOrder]="-1"
+      [rowHover]="true"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="Showing {first} to {last} of {totalRecords} transactions"
+      [tableStyle]="{ 'min-width': '56rem' }"
+      (onLazyLoad)="onLazyLoad($event)"
+    >
+      <ng-template #header>
+        <tr>
+          <th pSortableColumn="createdAt">When <p-sortIcon field="createdAt" /></th>
+          @if (!auth.isPartner()) {
+            <th>Partner</th>
+          }
+          <th pSortableColumn="type">Type <p-sortIcon field="type" /></th>
+          <th pSortableColumn="amount">Amount <p-sortIcon field="amount" /></th>
+          <th pSortableColumn="balanceAfter">Balance after <p-sortIcon field="balanceAfter" /></th>
+          <th pSortableColumn="reference">Reference <p-sortIcon field="reference" /></th>
+        </tr>
+      </ng-template>
+      <ng-template #body let-tx>
+        <tr>
+          <td>
+            <strong>{{ tx.createdAt ? (tx.createdAt | date: 'medium') : '—' }}</strong>
+          </td>
+          @if (!auth.isPartner()) {
+            <td>
+              <strong>{{ tx.partnerName || '—' }}</strong>
+              <small>{{ tx.partnerCode || '' }}</small>
+            </td>
+          }
+          <td>
+            <span class="pill" [class.live]="tx.type === 'TOPUP' || tx.type === 'REFUND'" [class.bad]="tx.type === 'CONSUMPTION'">
+              {{ typeLabel(tx.type) }}
+            </span>
+          </td>
+          <td>{{ formatMoney(tx.amount) }}</td>
+          <td>{{ formatMoney(tx.balanceAfter) }}</td>
+          <td>{{ tx.reference || '—' }}</td>
+        </tr>
+      </ng-template>
+      <ng-template #emptymessage>
+        <tr>
+          <td [attr.colspan]="auth.isPartner() ? 5 : 6">
+            <div class="empty-inline">
+              <h3>{{ query() ? 'No matches' : 'No transactions yet' }}</h3>
+              <p>
+                {{
+                  query()
+                    ? 'Try a different search term or type filter.'
+                    : auth.isPartner()
+                      ? 'Credit movements for your organisation will appear here.'
+                      : 'Credit top-ups and SMS consumption will appear here.'
+                }}
+              </p>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+</section>

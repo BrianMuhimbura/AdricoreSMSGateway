@@ -46,19 +46,24 @@ public class JwtUtility {
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token, username);
+        if (!username.equals(userDetails.getUsername())) {
+            return false;
+        }
+        SystemUserModel user = userDetails instanceof SystemUserModel model
+                ? model
+                : userRepository.findFirstByUsernameOrEmail(username, username).orElse(null);
+        return !isTokenExpired(token, user);
     }
 
     /**
-     * @param token    jwt token
-     * @param username username used when setting up userDetails, for our case, we use username
+     * @param token jwt token
+     * @param usersModel the user loaded for this token
      * @return Boolean
      * @implNote Will check for two things if the token is expired as per eaten claim
      * and will also check of the user has already requested for another token, requesting for another token
      * makes all the previously generated token expired.
      */
-    private boolean isTokenExpired(String token, String username) {
-        SystemUserModel usersModel = userRepository.findFirstByUsername(username);
+    private boolean isTokenExpired(String token, SystemUserModel usersModel) {
         if (usersModel == null) {
             throw new IllegalStateException("User not found");
         }
@@ -71,7 +76,9 @@ public class JwtUtility {
             throw new IllegalStateException("INVALID TOKEN");
         }
 
-        if (extractIssuedAt(token).after(usersModel.getLastLoggedInAt())) {
+        long issuedAtSeconds = extractIssuedAt(token).getTime() / 1000;
+        long lastLoginSeconds = usersModel.getLastLoggedInAt().getTime() / 1000;
+        if (issuedAtSeconds > lastLoginSeconds) {
             throw new IllegalStateException("EXPIRED TOKEN USED");
         }
 
@@ -90,7 +97,8 @@ public class JwtUtility {
         long now = System.currentTimeMillis();
         Timestamp stamp = new Timestamp(now);
 
-        SystemUserModel user = userRepository.findFirstByUsername(userDetails.getUsername());
+        SystemUserModel user = userRepository.findFirstByUsernameOrEmail(userDetails.getUsername(), userDetails.getUsername())
+                .orElseThrow(() -> new IllegalStateException("User not found"));
 
         // archived staff members should not login
         user.setLastLoggedInAt(stamp);
@@ -112,6 +120,10 @@ public class JwtUtility {
             }
         }
         claims.put("permissions", permissions);
+        claims.put("must_change_password", Boolean.TRUE.equals(user.getMustChangePassword()));
+        if (user.getPartnerId() != null) {
+            claims.put("partner_id", user.getPartnerId().toString());
+        }
         return Jwts
                 .builder()
                 .setClaims(claims)

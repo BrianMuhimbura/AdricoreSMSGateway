@@ -1,0 +1,181 @@
+<section class="page">
+  <div class="hero">
+    <div>
+      <p class="kicker">Security</p>
+      <h2>Audit log</h2>
+      <p>Every write in the gateway is recorded here: who did it, what changed, and whether it succeeded.</p>
+      @if (auth.isPartner()) {
+        <p>Showing activity from your organisation's users only.</p>
+      }
+    </div>
+    <div class="hero-meta">
+      <article>
+        <span>Total</span>
+        <strong>{{ totalCount() }}</strong>
+      </article>
+      <article>
+        <span>Today</span>
+        <strong>{{ todayCount() }}</strong>
+      </article>
+      <article>
+        <span>Failed</span>
+        <strong>{{ failedCount() }}</strong>
+      </article>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <label class="search">
+      <span class="sr-only">Search audit logs</span>
+      <input
+        type="search"
+        [value]="query()"
+        (input)="onQueryInput($any($event.target).value)"
+        placeholder="Search action, actor, or resource id"
+      />
+    </label>
+    <div class="chips" role="tablist" aria-label="Filter audit logs">
+      @for (filter of visibleFilters(); track filter.id) {
+        <button
+          type="button"
+          role="tab"
+          class="chip"
+          [class.active]="statusFilter() === filter.id"
+          [attr.aria-selected]="statusFilter() === filter.id"
+          (click)="setStatus(filter.id)"
+        >
+          {{ filter.label }}
+        </button>
+      }
+    </div>
+    <button type="button" class="ghost" (click)="refresh()" [disabled]="loading()">Refresh</button>
+  </div>
+
+  @if (error() && !detailOpen()) {
+    <p class="banner bad" role="alert">{{ error() }}</p>
+  }
+
+  <div class="table-wrap">
+    <p-table
+      #dt
+      [value]="logs()"
+      dataKey="id"
+      [lazy]="true"
+      [paginator]="true"
+      [rows]="pageSize"
+      [totalRecords]="totalRecords()"
+      [loading]="loading()"
+      [rowsPerPageOptions]="pageSizeOptions"
+      [alwaysShowPaginator]="true"
+      [sortField]="'createdAt'"
+      [sortOrder]="-1"
+      [rowHover]="true"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="Showing {first} to {last} of {totalRecords} events"
+      [tableStyle]="{ 'min-width': '64rem' }"
+      (onLazyLoad)="onLazyLoad($event)"
+    >
+      <ng-template #header>
+        <tr>
+          <th pSortableColumn="createdAt">When <p-sortIcon field="createdAt" /></th>
+          <th pSortableColumn="action">Action <p-sortIcon field="action" /></th>
+          <th>Actor</th>
+          <th pSortableColumn="resourceType">Resource <p-sortIcon field="resourceType" /></th>
+          <th pSortableColumn="success">Result <p-sortIcon field="success" /></th>
+          <th></th>
+        </tr>
+      </ng-template>
+      <ng-template #body let-log>
+        <tr>
+          <td>
+            <strong>{{ log.createdAt ? (log.createdAt | date: 'medium') : '—' }}</strong>
+          </td>
+          <td>
+            <strong>{{ actionLabel(log.action) }}</strong>
+            <small>{{ log.action }}</small>
+          </td>
+          <td>
+            <strong>{{ log.actorUsername || log.actorId || '—' }}</strong>
+            <small>{{ log.actorType || '' }}</small>
+          </td>
+          <td>
+            <strong>{{ log.resourceType || '—' }}</strong>
+            <small>{{ log.resourceId || '' }}</small>
+          </td>
+          <td>
+            <span class="pill" [class.live]="log.success" [class.bad]="log.success === false">
+              {{ log.success === false ? 'Failed' : 'Succeeded' }}
+            </span>
+            @if (log.summary) {
+              <small>{{ log.summary }}</small>
+            }
+          </td>
+          <td class="actions">
+            <button type="button" class="link" (click)="openDetail(log)">Details</button>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template #emptymessage>
+        <tr>
+          <td colspan="6">
+            <div class="empty-inline">
+              <h3>{{ query() ? 'No matches' : 'No audit events yet' }}</h3>
+              <p>
+                {{
+                  query()
+                    ? 'Try a different search term or filter.'
+                    : 'Create, update, and send actions will appear here as they happen.'
+                }}
+              </p>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+</section>
+
+@if (detailOpen() && selected(); as log) {
+  <div class="overlay" (click)="closeDetail()">
+    <section class="sheet" role="dialog" aria-modal="true" aria-label="Audit log details" (click)="$event.stopPropagation()">
+      <header>
+        <p class="kicker">Audit event</p>
+        <h3>{{ actionLabel(log.action) }}</h3>
+        <p>{{ log.createdAt ? (log.createdAt | date: 'medium') : log.action }}</p>
+      </header>
+      <div class="detail-grid">
+        <label class="field">
+          <span>Result</span>
+          <p>
+            <span class="pill" [class.live]="log.success" [class.bad]="log.success === false">
+              {{ log.success === false ? 'Failed' : 'Succeeded' }}
+            </span>
+          </p>
+        </label>
+        <div class="split">
+          <label class="field">
+            <span>Actor</span>
+            <p>{{ log.actorUsername || '—' }}</p>
+            <small>{{ log.actorType }}{{ log.actorId ? ' · ' + log.actorId : '' }}</small>
+          </label>
+          <label class="field">
+            <span>Resource</span>
+            <p>{{ log.resourceType || '—' }}</p>
+            <small>{{ log.resourceId || '' }}</small>
+          </label>
+        </div>
+        <label class="field">
+          <span>Summary</span>
+          <p>{{ log.summary || '—' }}</p>
+        </label>
+        <label class="field">
+          <span>Details</span>
+          <p class="message-body">{{ formatDetails(log.details) }}</p>
+        </label>
+      </div>
+      <div class="sheet-actions">
+        <button type="button" class="ghost" (click)="closeDetail()">Close</button>
+      </div>
+    </section>
+  </div>
+}

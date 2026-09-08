@@ -34,6 +34,20 @@ public class WebActionsController {
     }
 
     /**
+     * REST-style entry point used by the admin interface, e.g. POST /api/v1/Auth/login/
+     * with a JSON body of {@code { "username", "password" }}.
+     */
+    @PostMapping({"{service}/{action}", "{service}/{action}/"})
+    public OperationReturnObject processPathRequest(
+            @PathVariable String service,
+            @PathVariable String action,
+            @RequestBody @Nullable String requestBody
+    ) {
+        log.info("Path request:{}/{} body:{}", service, action, requestBody);
+        return dispatch(service, action, requestBody);
+    }
+
+    /**
      * @param requestBody Request Object.
      * @return OperationReturnObject
      * @implNote For every request, it must define a SERVICE and an ACTION plus the rest of the data as per action implementation.
@@ -45,14 +59,8 @@ public class WebActionsController {
     @PostMapping
     public OperationReturnObject processServiceRequest(@RequestBody @Nullable String requestBody) {
         log.info("Request:{}", requestBody);
-        // grab the service name from the request body
         try {
-            // let's avoid parsing twice, and parse from here once and for all.
-            JSONObject jsonObject = JSON.parseObject(requestBody);
-
-            if (jsonObject == null) {
-                jsonObject = new JSONObject();
-            }
+            JSONObject jsonObject = parseBody(requestBody);
 
             if (!jsonObject.containsKey("SERVICE")) {
                 throw new IllegalStateException("SERVICE UNDEFINED");
@@ -66,10 +74,27 @@ public class WebActionsController {
             String action = jsonObject.getString("ACTION").trim();
             return webActionsService.processAction(service, action, jsonObject);
         } catch (Exception e) {
-            OperationReturnObject responseWithError = new OperationReturnObject();
-            responseWithError.setReturnCodeAndReturnMessage(500, e.getMessage());
-            return responseWithError;
+            return errorResponse(e);
         }
+    }
+
+    private OperationReturnObject dispatch(String service, String action, @Nullable String requestBody) {
+        try {
+            return webActionsService.processAction(service, action, parseBody(requestBody));
+        } catch (Exception e) {
+            return errorResponse(e);
+        }
+    }
+
+    private JSONObject parseBody(@Nullable String requestBody) {
+        JSONObject jsonObject = JSON.parseObject(requestBody);
+        return jsonObject == null ? new JSONObject() : jsonObject;
+    }
+
+    private OperationReturnObject errorResponse(Exception e) {
+        OperationReturnObject responseWithError = new OperationReturnObject();
+        responseWithError.setReturnCodeAndReturnMessage(500, e.getMessage());
+        return responseWithError;
     }
 
 }

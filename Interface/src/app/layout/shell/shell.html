@@ -1,0 +1,70 @@
+<div class="shell">
+  @if (menuOpen()) {
+    <button class="backdrop" type="button" aria-label="Close menu" (click)="menuOpen.set(false)"></button>
+  }
+
+  <aside class="sidebar" [class.open]="menuOpen()">
+    <div class="sidebar-brand">
+      <img src="/assets/branding/adricore-logo.png" alt="Adricore Technologies" />
+    </div>
+
+    <nav>
+      @for (link of links(); track link.path) {
+        <a [routerLink]="link.path" routerLinkActive="active">
+          @switch (link.icon) {
+            @case ('grid') {
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>
+            }
+            @case ('users') {
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 19v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M17 11a4 4 0 1 0-8 0 4 4 0 0 0 8 0ZM21 19v-1a4 4 0 0 0-3-3.87" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            }
+            @case ('user') {
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4ZM19 20v-1a5 5 0 0 0-5-5h-4a5 5 0 0 0-5 5v1" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            }
+            @case ('profile') {
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v4H8zM5 10h14v10H5zM9 14h6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+            }
+            @case ('message') {
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v10H8l-4 4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+            }
+            @case ('shield') {
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v6c0 4.2 2.8 7.9 7 9 4.2-1.1 7-4.8 7-9V6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+            }
+            @case ('swap') {
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h13l-3-3M17 17H4l3 3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            }
+          }
+          <span>{{ link.label }}</span>
+        </a>
+      }
+    </nav>
+
+    <button class="logout" type="button" (click)="logout()">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H6v14h4M14 12H4M14 8l6 4-6 4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Sign out
+    </button>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <button class="menu-btn" type="button" (click)="menuOpen.set(true)" aria-label="Open navigation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+      <div>
+        <p class="eyebrow">Adricore SMS Gateway</p>
+        <h1>{{ pageTitle() }}</h1>
+      </div>
+      <div class="user-chip">
+        <span class="avatar" aria-hidden="true">{{ auth.displayName().charAt(0) }}</span>
+        <div>
+          <strong>{{ auth.displayName() }}</strong>
+          <small>{{ auth.user()?.roleCode || 'Operator' }}</small>
+        </div>
+      </div>
+    </header>
+
+    <div class="content">
+      <router-outlet />
+    </div>
+  </div>
+</div>

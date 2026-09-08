@@ -7,5 +7,12 @@
     <include file="/changes/project_init.sql" relativeToChangelogFile="true"/>
     <include file="/changes/sms_migration.sql" relativeToChangelogFile="true"/>
     <include file="/changes/2025-11-23-sms-pricing-profile.sql" relativeToChangelogFile="true"/>
+    <include file="/changes/2026-09-06-seed-admin-user.sql" relativeToChangelogFile="true"/>
+    <include file="/changes/2026-09-07-user-signup.sql" relativeToChangelogFile="true"/>
+    <include file="/changes/2026-09-08-audit-log-ids.sql" relativeToChangelogFile="true"/>
+    <include file="/changes/2026-09-08-audit-log-success.sql" relativeToChangelogFile="true"/>
+    <include file="/changes/2026-09-08-partner-credit-accounts.sql" relativeToChangelogFile="true"/>
+    <include file="/changes/2026-09-08-audit-partner-scope.sql" relativeToChangelogFile="true"/>
+    <include file="/changes/2026-09-08-sasula-topup-reference.sql" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>
