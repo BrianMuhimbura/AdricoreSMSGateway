@@ -30,3 +30,10 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Deploy secrets / runtime
+deploy/.env
+deploy/*.jar
+deploy/logs/
+deploy/*.pid
+
