@@ -23,16 +23,26 @@ export class Shell {
       { path: '/dashboard', label: 'Dashboard', icon: 'grid' },
       { path: '/profile', label: 'Profile', icon: 'profile', partnerOnly: true },
       { path: '/partners', label: 'Partners', icon: 'users', permission: Permissions.MANAGE_PARTNERS },
+      { path: '/pricing-profiles', label: 'Pricing', icon: 'tag', permission: Permissions.MANAGE_PARTNERS },
       { path: '/users', label: 'Users', icon: 'user', permission: Permissions.MANAGE_USERS },
       { path: '/messages', label: 'Messages', icon: 'message', permission: Permissions.VIEW_MESSAGES },
       { path: '/audit-logs', label: 'Audit log', icon: 'shield', permission: Permissions.VIEW_AUDIT_LOGS },
       { path: '/transactions', label: 'Transactions', icon: 'swap', permission: Permissions.VIEW_TRANSACTIONS },
+      {
+        path: '/api-docs',
+        label: 'API docs',
+        icon: 'book',
+        anyPermissions: [Permissions.PARTNER_PORTAL, Permissions.MANAGE_USERS, Permissions.MANAGE_PARTNERS],
+      },
     ];
     return items.filter((link) => {
       if (link.partnerOnly && !this.auth.isPartner()) {
         return false;
       }
       if (link.permission && !this.auth.has(link.permission)) {
+        return false;
+      }
+      if (link.anyPermissions && !this.auth.hasAny(...link.anyPermissions)) {
         return false;
       }
       return true;

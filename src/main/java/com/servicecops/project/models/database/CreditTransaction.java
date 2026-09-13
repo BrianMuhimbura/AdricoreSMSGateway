@@ -23,6 +23,14 @@ public class CreditTransaction {
     @JoinColumn(name = "partner_id")
     private Partner partner;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "debit_account_id", nullable = false)
+    private CreditAccount debitAccount;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "credit_account_id", nullable = false)
+    private CreditAccount creditAccount;
+
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(nullable = false, columnDefinition = "credit_tx_type")
@@ -34,6 +42,12 @@ public class CreditTransaction {
     @Column(name = "balance_after", nullable = false)
     private java.math.BigDecimal balanceAfter;
 
+    @Column(name = "debit_balance_after")
+    private java.math.BigDecimal debitBalanceAfter;
+
+    @Column(name = "credit_balance_after")
+    private java.math.BigDecimal creditBalanceAfter;
+
     private String reference;
 
     @JdbcTypeCode(SqlTypes.JSON)
@@ -43,10 +57,7 @@ public class CreditTransaction {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    // Getters and setters
-
     public enum CreditTxType {
-        TOPUP, ALLOCATE, CONSUMPTION, REFUND, REVERSAL
+        TOPUP, ALLOCATE, CONSUMPTION, REFUND, REVERSAL, INCOME
     }
 }
-

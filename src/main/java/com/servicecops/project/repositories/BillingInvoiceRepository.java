@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 public interface BillingInvoiceRepository extends JpaRepository<BillingInvoice, UUID> {
@@ -16,4 +17,6 @@ public interface BillingInvoiceRepository extends JpaRepository<BillingInvoice, 
               and lower(invoice.status) = 'pending'
             """)
     BigDecimal sumPendingAmountByPartnerId(@Param("partnerId") UUID partnerId);
+
+    List<BillingInvoice> findByPartner_IdAndStatusIgnoreCaseOrderByCreatedAtAsc(UUID partnerId, String status);
 }

@@ -3,11 +3,12 @@
     <div>
       <p class="kicker">Billing</p>
       <h2>Transactions</h2>
-      <p>Inspect credit top-ups, consumption, refunds, and the running balance after each movement.</p>
+      <p>Inspect credit top-ups, SMS charges, and the debit/credit accounts on each movement.</p>
       @if (auth.isPartner()) {
         <p>Showing only credit movements for your organisation.</p>
       }
     </div>
+    <div class="hero-side">
     <div class="hero-meta">
       <article>
         <span>Total</span>
@@ -21,6 +22,29 @@
         <span>Consumption</span>
         <strong>{{ consumptionCount() }}</strong>
       </article>
+      @if (!auth.isPartner()) {
+        <article>
+          <span>Income posts</span>
+          <strong>{{ incomeCount() }}</strong>
+        </article>
+      }
+    </div>
+    @if (!auth.isPartner() && (control() || operations() || income())) {
+      <div class="hero-meta ledger">
+        <article>
+          <span>{{ control()?.code || 'ADRICORE_CONTROL' }}</span>
+          <strong>{{ formatMoney(control()?.balance) }}</strong>
+        </article>
+        <article>
+          <span>{{ operations()?.code || 'ADRICORE_OPERATIONS' }}</span>
+          <strong>{{ formatMoney(operations()?.balance) }}</strong>
+        </article>
+        <article>
+          <span>{{ income()?.code || 'ADRICORE_INCOME' }}</span>
+          <strong>{{ formatMoney(income()?.balance) }}</strong>
+        </article>
+      </div>
+    }
     </div>
   </div>
 
@@ -31,11 +55,11 @@
         type="search"
         [value]="query()"
         (input)="onQueryInput($any($event.target).value)"
-        [placeholder]="auth.isPartner() ? 'Search reference' : 'Search reference, partner, or code'"
+        [placeholder]="auth.isPartner() ? 'Search reference' : 'Search reference, partner, or account'"
       />
     </label>
     <div class="chips" role="tablist" aria-label="Filter by type">
-      @for (filter of filters; track filter.id) {
+      @for (filter of visibleFilters; track filter.id) {
         <button
           type="button"
           role="tab"
@@ -75,7 +99,7 @@
       [rowHover]="true"
       [showCurrentPageReport]="true"
       currentPageReportTemplate="Showing {first} to {last} of {totalRecords} transactions"
-      [tableStyle]="{ 'min-width': '56rem' }"
+      [tableStyle]="{ 'min-width': '68rem' }"
       (onLazyLoad)="onLazyLoad($event)"
     >
       <ng-template #header>
@@ -85,6 +109,8 @@
             <th>Partner</th>
           }
           <th pSortableColumn="type">Type <p-sortIcon field="type" /></th>
+          <th>Debit</th>
+          <th>Credit</th>
           <th pSortableColumn="amount">Amount <p-sortIcon field="amount" /></th>
           <th pSortableColumn="balanceAfter">Balance after <p-sortIcon field="balanceAfter" /></th>
           <th pSortableColumn="reference">Reference <p-sortIcon field="reference" /></th>
@@ -102,9 +128,22 @@
             </td>
           }
           <td>
-            <span class="pill" [class.live]="tx.type === 'TOPUP' || tx.type === 'REFUND'" [class.bad]="tx.type === 'CONSUMPTION'">
+            <span
+              class="pill"
+              [class.live]="typeClass(tx.type) === 'live'"
+              [class.bad]="typeClass(tx.type) === 'bad'"
+              [class.plan]="typeClass(tx.type) === 'plan'"
+            >
               {{ typeLabel(tx.type) }}
             </span>
+          </td>
+          <td>
+            <strong>{{ accountLabel(tx.debitAccount) }}</strong>
+            <small>{{ accountCode(tx.debitAccount) }}</small>
+          </td>
+          <td>
+            <strong>{{ accountLabel(tx.creditAccount) }}</strong>
+            <small>{{ accountCode(tx.creditAccount) }}</small>
           </td>
           <td>{{ formatMoney(tx.amount) }}</td>
           <td>{{ formatMoney(tx.balanceAfter) }}</td>
@@ -113,7 +152,7 @@
       </ng-template>
       <ng-template #emptymessage>
         <tr>
-          <td [attr.colspan]="auth.isPartner() ? 5 : 6">
+          <td [attr.colspan]="auth.isPartner() ? 7 : 8">
             <div class="empty-inline">
               <h3>{{ query() ? 'No matches' : 'No transactions yet' }}</h3>
               <p>
@@ -122,7 +161,7 @@
                     ? 'Try a different search term or type filter.'
                     : auth.isPartner()
                       ? 'Credit movements for your organisation will appear here.'
-                      : 'Credit top-ups and SMS consumption will appear here.'
+                      : 'Credit top-ups, SMS charges, and income posts will appear here with debit and credit accounts.'
                 }}
               </p>
             </div>

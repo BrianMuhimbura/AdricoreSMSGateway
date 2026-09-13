@@ -5,6 +5,8 @@ import com.servicecops.project.models.database.Message;
 import com.servicecops.project.models.database.Partner;
 import com.servicecops.project.models.database.SystemUserModel;
 import com.servicecops.project.repositories.MessageRepository;
+import com.servicecops.project.service.PartnerService;
+import com.servicecops.project.service.SmsOutboundService;
 import com.servicecops.project.services.base.BaseWebActionsService;
 import com.servicecops.project.utils.OperationReturnObject;
 import com.servicecops.project.utils.PagedQuery;
@@ -43,6 +45,8 @@ public class MessagesService extends BaseWebActionsService {
     );
 
     private final MessageRepository messageRepository;
+    private final PartnerService partnerService;
+    private final SmsOutboundService smsOutboundService;
 
     protected OperationReturnObject list(JSONObject request) {
         UUID scopedPartnerId = authorizeAndScope();
@@ -78,13 +82,63 @@ public class MessagesService extends BaseWebActionsService {
         return success("Message found", toPublicMessage(message));
     }
 
+    protected OperationReturnObject testSend(JSONObject request) {
+        Partner partner = requireSendPartner();
+        requires(request, "to", "text");
+        return smsOutboundService.send(
+                partner,
+                request.get("to"),
+                request.getString("text"),
+                optionalText(request, "from"),
+                "portal_test",
+                1
+        );
+    }
+
+    protected OperationReturnObject bulkSend(JSONObject request) {
+        Partner partner = requireSendPartner();
+        requires(request, "to", "text");
+        return smsOutboundService.send(
+                partner,
+                request.get("to"),
+                request.getString("text"),
+                optionalText(request, "from"),
+                "portal_bulk",
+                SmsOutboundService.MAX_RECIPIENTS
+        );
+    }
+
     @Override
     public OperationReturnObject switchActions(String action, JSONObject request) {
         return switch (action) {
             case "list" -> list(request);
             case "get" -> get(request);
+            case "testSend" -> testSend(request);
+            case "bulkSend" -> bulkSend(request);
             default -> throw new IllegalArgumentException("Action " + action + " not known in this context");
         };
+    }
+
+    private Partner requireSendPartner() {
+        requiresAuth();
+        SystemUserModel user = authenticatedUser();
+        if (user.getPartnerId() == null) {
+            throw new IllegalArgumentException("No partner is linked to this account");
+        }
+        can(user.getUsername(), "VIEW_MESSAGES", "PARTNER_PORTAL");
+        Partner partner = partnerService.findById(user.getPartnerId())
+                .orElseThrow(() -> new IllegalArgumentException("Partner not found"));
+        if (!"active".equalsIgnoreCase(partner.getStatus())) {
+            throw new IllegalArgumentException("Partner is inactive");
+        }
+        return partner;
+    }
+
+    private String optionalText(JSONObject request, String field) {
+        if (request == null || !request.containsKey(field) || !StringUtils.hasText(request.getString(field))) {
+            return null;
+        }
+        return request.getString(field).trim();
     }
 
     private UUID authorizeAndScope() {

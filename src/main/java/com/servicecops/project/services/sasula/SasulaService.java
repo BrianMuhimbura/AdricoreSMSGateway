@@ -7,6 +7,7 @@ import com.servicecops.project.repositories.CreditTransactionRepository;
 import com.servicecops.project.service.BillingInvoiceService;
 import com.servicecops.project.service.CreditAccountService;
 import com.servicecops.project.service.PartnerService;
+import com.servicecops.project.service.PartnerTopupService;
 import com.servicecops.project.services.base.BaseWebActionsService;
 import com.servicecops.project.utils.OperationReturnObject;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ public class SasulaService extends BaseWebActionsService {
     private final BillingInvoiceService billingInvoiceService;
     private final CreditAccountService creditAccountService;
     private final CreditTransactionRepository creditTransactionRepository;
+    private final PartnerTopupService partnerTopupService;
 
     @Override
     public OperationReturnObject switchActions(String action, JSONObject request) {
@@ -120,6 +122,17 @@ public class SasulaService extends BaseWebActionsService {
         if (!StringUtils.hasText(sasulaReceipt)) {
             return fail(1, "Sasula receipt number cannot be empty");
         }
+        if (partnerTopupService.captureCollection(partner, amountPaid, sasulaReceipt)) {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("customerReference", partner.getPartnerCode());
+            payload.put("customerName", partner.getName());
+            payload.put("amountPaid", amountPaid);
+            payload.put("balanceAfter", creditAccountService.ensureFor(partner).getBalance());
+            payload.put("sasulaReceiptNumber", sasulaReceipt);
+            payload.put("reference", sasulaReceipt);
+            payload.put("currency", partner.getCurrency());
+            return success("Payment posted", payload);
+        }
         if (creditTransactionRepository.existsByTypeAndReference(CreditTransaction.CreditTxType.TOPUP, sasulaReceipt)) {
             return fail(1, "Duplicate Sasula receipt number");
         }
@@ -145,6 +158,7 @@ public class SasulaService extends BaseWebActionsService {
         } catch (DataIntegrityViolationException duplicate) {
             return fail(1, "Duplicate Sasula receipt number");
         }
+        partnerTopupService.markPendingInvoicesPaid(partner.getId(), amountPaid);
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("customerReference", partner.getPartnerCode());

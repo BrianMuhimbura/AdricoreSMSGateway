@@ -1,10 +1,12 @@
 package com.servicecops.project.services.transactions;
 
 import com.alibaba.fastjson2.JSONObject;
+import com.servicecops.project.models.database.CreditAccount;
 import com.servicecops.project.models.database.CreditTransaction;
 import com.servicecops.project.models.database.Partner;
 import com.servicecops.project.models.database.SystemUserModel;
 import com.servicecops.project.repositories.CreditTransactionRepository;
+import com.servicecops.project.service.CreditAccountService;
 import com.servicecops.project.services.base.BaseWebActionsService;
 import com.servicecops.project.utils.OperationReturnObject;
 import com.servicecops.project.utils.PagedQuery;
@@ -30,6 +32,7 @@ public class TransactionsService extends BaseWebActionsService {
     private static final Set<String> SORT_FIELDS = Set.of("createdAt", "amount", "balanceAfter", "type", "reference");
 
     private final CreditTransactionRepository creditTransactionRepository;
+    private final CreditAccountService creditAccountService;
 
     protected OperationReturnObject list(JSONObject request) {
         UUID scopedPartnerId = authorizeAndScope();
@@ -49,6 +52,10 @@ public class TransactionsService extends BaseWebActionsService {
         payload.put("totalCount", creditTransactionRepository.count(transactionSpec(null, "all", scopedPartnerId)));
         payload.put("topupCount", creditTransactionRepository.count(transactionSpec(null, "TOPUP", scopedPartnerId)));
         payload.put("consumptionCount", creditTransactionRepository.count(transactionSpec(null, "CONSUMPTION", scopedPartnerId)));
+        payload.put("incomeCount", creditTransactionRepository.count(transactionSpec(null, "INCOME", scopedPartnerId)));
+        if (scopedPartnerId == null) {
+            payload.put("ledger", creditAccountService.ledgerSnapshot());
+        }
         return success("Transactions found", payload);
     }
 
@@ -71,8 +78,11 @@ public class TransactionsService extends BaseWebActionsService {
         return (root, criteriaQuery, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             Join<CreditTransaction, Partner> partner = root.join("partner", partnerId != null ? JoinType.INNER : JoinType.LEFT);
+            Join<CreditTransaction, CreditAccount> debit = root.join("debitAccount", JoinType.LEFT);
+            Join<CreditTransaction, CreditAccount> credit = root.join("creditAccount", JoinType.LEFT);
             if (partnerId != null) {
                 predicates.add(cb.equal(partner.get("id"), partnerId));
+                predicates.add(cb.notEqual(root.get("type"), CreditTransaction.CreditTxType.INCOME));
             }
             CreditTransaction.CreditTxType type = typeFor(status);
             if (type != null) {
@@ -83,7 +93,11 @@ public class TransactionsService extends BaseWebActionsService {
                 predicates.add(cb.or(
                         cb.like(cb.lower(cb.coalesce(root.get("reference"), "")), like),
                         cb.like(cb.lower(cb.coalesce(partner.get("name"), "")), like),
-                        cb.like(cb.lower(cb.coalesce(partner.get("partnerCode"), "")), like)
+                        cb.like(cb.lower(cb.coalesce(partner.get("partnerCode"), "")), like),
+                        cb.like(cb.lower(cb.coalesce(debit.get("accountCode"), "")), like),
+                        cb.like(cb.lower(cb.coalesce(debit.get("accountName"), "")), like),
+                        cb.like(cb.lower(cb.coalesce(credit.get("accountCode"), "")), like),
+                        cb.like(cb.lower(cb.coalesce(credit.get("accountName"), "")), like)
                 ));
             }
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -111,8 +125,25 @@ public class TransactionsService extends BaseWebActionsService {
         data.put("type", tx.getType() == null ? null : tx.getType().name());
         data.put("amount", tx.getAmount());
         data.put("balanceAfter", tx.getBalanceAfter());
+        data.put("debitAccount", toPublicAccount(tx.getDebitAccount()));
+        data.put("creditAccount", toPublicAccount(tx.getCreditAccount()));
+        data.put("debitBalanceAfter", tx.getDebitBalanceAfter());
+        data.put("creditBalanceAfter", tx.getCreditBalanceAfter());
         data.put("reference", tx.getReference());
         data.put("createdAt", tx.getCreatedAt());
+        return data;
+    }
+
+    private Map<String, Object> toPublicAccount(CreditAccount account) {
+        if (account == null) {
+            return null;
+        }
+        Partner partner = account.getPartner();
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("id", account.getId());
+        data.put("code", account.getAccountCode());
+        data.put("name", account.label());
+        data.put("partnerCode", partner == null ? null : partner.getPartnerCode());
         return data;
     }
 

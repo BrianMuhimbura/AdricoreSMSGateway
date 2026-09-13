@@ -9,6 +9,7 @@ import com.servicecops.project.repositories.PartnerRepository;
 import com.servicecops.project.repositories.SystemRoleRepository;
 import com.servicecops.project.repositories.SystemUserRepository;
 import com.servicecops.project.service.CreditAccountService;
+import com.servicecops.project.service.PartnerPricingService;
 import com.servicecops.project.services.base.BaseWebActionsService;
 import com.servicecops.project.services.mail.MailService;
 import com.servicecops.project.utils.OperationReturnObject;
@@ -50,6 +51,7 @@ public class AuthService extends BaseWebActionsService {
     private final MailService mailService;
     private final PlatformTransactionManager transactionManager;
     private final CreditAccountService creditAccountService;
+    private final PartnerPricingService partnerPricingService;
 
     @Value("${app.portal-url:http://127.0.0.1:4200}")
     private String portalUrl;
@@ -119,6 +121,7 @@ public class AuthService extends BaseWebActionsService {
         partner.setUpdatedAt(Instant.now());
         Partner savedPartner = partnerRepository.saveAndFlush(partner);
         creditAccountService.ensureFor(savedPartner);
+        partnerPricingService.assignDefault(savedPartner, "signup");
 
         SystemUserModel user = SystemUserModel.builder()
                 .firstName(firstName)
@@ -200,7 +203,7 @@ public class AuthService extends BaseWebActionsService {
     @Override
     public OperationReturnObject switchActions(String action, JSONObject request) {
         return switch (action) {
-            case "login" -> login(request);
+            case "login", "token" -> login(request);
             case "signup" -> signup(request);
             case "changePassword" -> changePassword(request);
             default -> throw new IllegalArgumentException("Action " + action + " not known in this context");

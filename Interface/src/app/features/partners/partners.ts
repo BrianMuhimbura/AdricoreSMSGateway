@@ -5,6 +5,8 @@ import { Table, TableModule } from 'primeng/table';
 import type { TableLazyLoadEvent } from 'primeng/types/table';
 import { PartnersApi, PartnerLookup } from './partners.api';
 import { Partner, PartnerPayload, PartnerStatus } from './partners.model';
+import { PricingProfilesApi } from '../pricing-profiles/pricing-profiles.api';
+import { SmsPricingProfileLookup } from '../pricing-profiles/pricing-profiles.model';
 import { fromLazyEvent } from '../../core/api/paged-list';
 
 type StatusFilter = 'all' | PartnerStatus;
@@ -17,6 +19,7 @@ type StatusFilter = 'all' | PartnerStatus;
 })
 export class Partners implements OnDestroy {
   private readonly api = inject(PartnersApi);
+  private readonly pricingApi = inject(PricingProfilesApi);
   private readonly fb = inject(FormBuilder);
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
   private searchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -26,6 +29,7 @@ export class Partners implements OnDestroy {
 
   readonly partners = signal<Partner[]>([]);
   readonly parentChoices = signal<PartnerLookup[]>([]);
+  readonly profileChoices = signal<SmsPricingProfileLookup[]>([]);
   readonly loading = signal(false);
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
@@ -56,6 +60,7 @@ export class Partners implements OnDestroy {
     phone: [''],
     currency: ['UGX', Validators.required],
     parentPartnerId: [''],
+    pricingProfileId: [''],
     status: ['active'],
   });
 
@@ -115,10 +120,11 @@ export class Partners implements OnDestroy {
       phone: '',
       currency: 'UGX',
       parentPartnerId: '',
+      pricingProfileId: '',
       status: 'active',
     });
     this.editorOpen.set(true);
-    await this.loadParents();
+    await Promise.all([this.loadParents(), this.loadProfiles(true)]);
   }
 
   async openEdit(partner: Partner): Promise<void> {
@@ -130,10 +136,11 @@ export class Partners implements OnDestroy {
       phone: partner.phone ?? '',
       currency: partner.currency || 'UGX',
       parentPartnerId: partner.parentPartnerId ?? '',
+      pricingProfileId: partner.pricingProfileId != null ? String(partner.pricingProfileId) : '',
       status: partner.status,
     });
     this.editorOpen.set(true);
-    await this.loadParents();
+    await Promise.all([this.loadParents(), this.loadProfiles(false)]);
   }
 
   closeEditor(): void {
@@ -164,6 +171,7 @@ export class Partners implements OnDestroy {
       phone: value.phone.trim() || null,
       currency: value.currency,
       parentPartnerId: value.parentPartnerId || null,
+      pricingProfileId: value.pricingProfileId ? Number(value.pricingProfileId) : null,
     };
 
     this.saving.set(true);
@@ -259,6 +267,21 @@ export class Partners implements OnDestroy {
       this.parentChoices.set((rows ?? []).filter((partner) => partner.id !== currentId));
     } catch {
       this.parentChoices.set([]);
+    }
+  }
+
+  private async loadProfiles(selectDefault: boolean): Promise<void> {
+    try {
+      const rows = await this.pricingApi.lookup();
+      this.profileChoices.set(rows ?? []);
+      if (selectDefault && !this.form.controls.pricingProfileId.value) {
+        const starter = (rows ?? []).find((profile) => profile.isDefault || profile.profileCode === 'STARTER');
+        if (starter) {
+          this.form.patchValue({ pricingProfileId: String(starter.id) });
+        }
+      }
+    } catch {
+      this.profileChoices.set([]);
     }
   }
 

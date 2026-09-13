@@ -1,23 +1,25 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, HostListener, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { Permissions } from '../../core/auth/auth.models';
 import { AuditLogsApi } from '../audit-logs/audit-logs.api';
 import { AuditLogEntry } from '../audit-logs/audit-logs.model';
 import { PartnersApi } from '../partners/partners.api';
-import { Partner } from '../partners/partners.model';
+import { Partner, PartnerPaymentRequest, PartnerTopupResult } from '../partners/partners.model';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, DatePipe],
+  imports: [RouterLink, DatePipe, ReactiveFormsModule],
   templateUrl: './dashboard.html',
   styleUrl: './dashboard.css',
 })
-export class Dashboard implements OnInit {
+export class Dashboard implements OnInit, OnDestroy {
   readonly auth = inject(AuthService);
   private readonly auditLogs = inject(AuditLogsApi);
   private readonly partnersApi = inject(PartnersApi);
+  private readonly fb = inject(FormBuilder);
 
   readonly canViewAudit = signal(false);
   readonly isPartnerUser = signal(false);
@@ -28,6 +30,22 @@ export class Dashboard implements OnInit {
   readonly auditToday = signal(0);
   readonly auditFailed = signal(0);
   readonly partner = signal<Partner | null>(null);
+  readonly topupOpen = signal(false);
+  readonly topupSaving = signal(false);
+  readonly paying = signal(false);
+  readonly topupError = signal<string | null>(null);
+  readonly topupResult = signal<PartnerTopupResult | null>(null);
+
+  readonly topupForm = this.fb.nonNullable.group({
+    amount: [10000, [Validators.required, Validators.min(1)]],
+  });
+
+  readonly payForm = this.fb.nonNullable.group({
+    customerPhone: ['', [Validators.required, Validators.minLength(9)]],
+  });
+
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private pollCount = 0;
 
   readonly cards: {
     label: string;
@@ -82,6 +100,18 @@ export class Dashboard implements OnInit {
     }
   }
 
+  ngOnDestroy(): void {
+    this.stopPaymentPoll();
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.topupSaving() || this.paying()) {
+      return;
+    }
+    this.closeTopup();
+  }
+
   actionLabel(action?: string | null): string {
     if (!action) {
       return '—';
@@ -114,6 +144,205 @@ export class Dashboard implements OnInit {
 
   visibleCards() {
     return this.cards.filter((card) => !card.permission || this.auth.has(card.permission));
+  }
+
+  creditAmount(): number | string | null {
+    return this.partner()?.credit?.available ?? this.partner()?.credit?.balance ?? null;
+  }
+
+  creditLow(): boolean {
+    const value = Number(this.creditAmount() ?? 0);
+    return !Number.isNaN(value) && value <= 0;
+  }
+
+  pendingTopup(): number {
+    const value = Number(this.partner()?.credit?.pendingTopup ?? 0);
+    return Number.isNaN(value) ? 0 : value;
+  }
+
+  reservedAmount(): number {
+    const value = Number(this.partner()?.credit?.reserved ?? 0);
+    return Number.isNaN(value) ? 0 : value;
+  }
+
+  planName(): string {
+    return this.partner()?.pricingProfile?.profileName || this.partner()?.pricingProfileName || 'Starter Profile';
+  }
+
+  planCode(): string {
+    return this.partner()?.pricingProfile?.profileCode || this.partner()?.pricingProfileCode || 'STARTER';
+  }
+
+  planPrice(): number | string | null {
+    return this.partner()?.pricingProfile?.sellingPricePerSms ?? null;
+  }
+
+  planCurrency(): string {
+    return this.partner()?.pricingProfile?.currencyCode || this.partner()?.currency || 'UGX';
+  }
+
+  planBilling(): string {
+    return this.partner()?.pricingProfile?.billingType === 'PER_SEGMENT' ? 'Billed per segment' : 'Billed per SMS';
+  }
+
+  planVolume(): string {
+    const profile = this.partner()?.pricingProfile;
+    const min = profile?.minimumSmsVolume ?? 0;
+    if (profile?.maximumSmsVolume == null) {
+      return `${min.toLocaleString()}+ SMS volume`;
+    }
+    return `${min.toLocaleString()} – ${profile.maximumSmsVolume.toLocaleString()} SMS volume`;
+  }
+
+  remainingSms(): number | null {
+    const price = Number(this.planPrice());
+    const credit = Number(this.creditAmount());
+    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(credit)) {
+      return null;
+    }
+    return Math.max(0, Math.floor(credit / price));
+  }
+
+  invoiceId(): string | null {
+    const result = this.topupResult();
+    return result?.invoice?.id || result?.invoiceId || null;
+  }
+
+  payment(): PartnerPaymentRequest | null {
+    return this.topupResult()?.payment ?? null;
+  }
+
+  paymentStatus(): string {
+    return (this.payment()?.status || '').toUpperCase();
+  }
+
+  paymentInFlight(): boolean {
+    const status = this.paymentStatus();
+    return status === 'PENDING' || status === 'REQUESTED';
+  }
+
+  paymentSuccessful(): boolean {
+    return this.paymentStatus() === 'SUCCESSFUL';
+  }
+
+  paymentFailed(): boolean {
+    return this.paymentStatus() === 'FAILED';
+  }
+
+  openTopup(): void {
+    this.stopPaymentPoll();
+    this.topupError.set(null);
+    this.topupResult.set(null);
+    this.topupForm.reset({ amount: 10000 });
+    this.payForm.reset({ customerPhone: this.partner()?.phone || '' });
+    this.topupOpen.set(true);
+  }
+
+  closeTopup(): void {
+    if (this.topupSaving() || this.paying()) {
+      return;
+    }
+    this.stopPaymentPoll();
+    this.topupOpen.set(false);
+    this.topupError.set(null);
+    this.topupResult.set(null);
+  }
+
+  async submitTopup(): Promise<void> {
+    if (this.topupForm.invalid) {
+      this.topupForm.markAllAsTouched();
+      return;
+    }
+    this.topupSaving.set(true);
+    this.topupError.set(null);
+    try {
+      const result = await this.partnersApi.requestTopup({
+        amount: Number(this.topupForm.controls.amount.value),
+      });
+      this.topupResult.set(result);
+      if (!this.payForm.controls.customerPhone.value) {
+        this.payForm.patchValue({ customerPhone: this.partner()?.phone || '' });
+      }
+      await this.loadPartner();
+    } catch (error) {
+      this.topupError.set(error instanceof Error ? error.message : 'Unable to create a top-up request.');
+    } finally {
+      this.topupSaving.set(false);
+    }
+  }
+
+  async submitPayment(): Promise<void> {
+    const invoiceId = this.invoiceId();
+    if (!invoiceId) {
+      this.topupError.set('Create a top-up invoice first.');
+      return;
+    }
+    if (this.payForm.invalid) {
+      this.payForm.markAllAsTouched();
+      return;
+    }
+    this.paying.set(true);
+    this.topupError.set(null);
+    try {
+      const result = await this.partnersApi.payNow({
+        invoiceId,
+        customerPhone: this.payForm.controls.customerPhone.value,
+      });
+      this.topupResult.set(result);
+      if (this.paymentInFlight()) {
+        this.startPaymentPoll(result.payment?.id);
+      } else if (this.paymentSuccessful()) {
+        await this.loadPartner();
+      }
+    } catch (error) {
+      this.topupError.set(error instanceof Error ? error.message : 'Unable to start the mobile money payment.');
+    } finally {
+      this.paying.set(false);
+    }
+  }
+
+  private async checkPayment(paymentRequestId?: string): Promise<void> {
+    const id = paymentRequestId || this.payment()?.id;
+    if (!id) {
+      this.stopPaymentPoll();
+      return;
+    }
+    this.pollCount += 1;
+    if (this.pollCount > 90) {
+      this.stopPaymentPoll();
+      this.topupError.set('Still waiting for confirmation. Keep this page open or try Pay now again shortly.');
+      return;
+    }
+    try {
+      const result = await this.partnersApi.paymentStatus(id);
+      this.topupResult.set(result);
+      if (this.paymentSuccessful()) {
+        this.stopPaymentPoll();
+        this.topupError.set(null);
+        await this.loadPartner();
+      } else if (this.paymentFailed()) {
+        this.stopPaymentPoll();
+      }
+    } catch (error) {
+      this.topupError.set(error instanceof Error ? error.message : 'Unable to check payment status.');
+    }
+  }
+
+  private startPaymentPoll(paymentRequestId?: string): void {
+    this.stopPaymentPoll();
+    if (!paymentRequestId) {
+      return;
+    }
+    this.pollCount = 0;
+    this.pollTimer = setInterval(() => void this.checkPayment(paymentRequestId), 4000);
+  }
+
+  private stopPaymentPoll(): void {
+    if (this.pollTimer) {
+      clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    }
+    this.pollCount = 0;
   }
 
   private async loadPartner(): Promise<void> {

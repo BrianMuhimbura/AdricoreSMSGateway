@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { PartnersApi } from '../partners/partners.api';
-import { Partner, PartnerCredit } from '../partners/partners.model';
+import { Partner, PartnerCredit, PartnerPlanCatalog } from '../partners/partners.model';
 
 @Component({
   selector: 'app-partner-profile',
@@ -47,6 +47,45 @@ export class PartnerProfile implements OnInit {
 
   credit(): PartnerCredit | null {
     return this.partner()?.credit ?? null;
+  }
+
+  remainingSms(): number | null {
+    const price = Number(this.partner()?.pricingProfile?.sellingPricePerSms);
+    const credit = Number(this.credit()?.available ?? this.credit()?.balance);
+    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(credit)) {
+      return null;
+    }
+    return Math.max(0, Math.floor(credit / price));
+  }
+
+  plans(): PartnerPlanCatalog[] {
+    return this.partner()?.pricingCatalog ?? [];
+  }
+
+  isCurrentPlan(plan: PartnerPlanCatalog): boolean {
+    const current = this.partner()?.pricingProfile;
+    return current?.id === plan.id || current?.profileCode === plan.profileCode;
+  }
+
+  volumeRange(plan: PartnerPlanCatalog): string {
+    const min = plan.minimumSmsVolume ?? 0;
+    if (plan.maximumSmsVolume == null) {
+      return `${min.toLocaleString()}+ SMS`;
+    }
+    return `${min.toLocaleString()} – ${plan.maximumSmsVolume.toLocaleString()} SMS`;
+  }
+
+  creditRange(plan: PartnerPlanCatalog): string {
+    const currency = plan.currencyCode || this.partner()?.currency;
+    const min = this.formatMoney(plan.minimumCredit, currency);
+    if (plan.maximumCredit == null || plan.maximumCredit === '') {
+      return `${min}+`;
+    }
+    return `${min} – ${this.formatMoney(plan.maximumCredit, currency)}`;
+  }
+
+  billingLabel(type?: string | null): string {
+    return type === 'PER_SEGMENT' ? 'Per segment' : 'Per SMS';
   }
 
   private async load(): Promise<void> {

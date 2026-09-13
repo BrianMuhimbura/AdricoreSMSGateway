@@ -1,0 +1,236 @@
+<section class="page">
+  <div class="hero">
+    <div>
+      <p class="kicker">Billing</p>
+      <h2>SMS pricing profiles</h2>
+      <p>Enter provider cost and top-up fee per SMS. Selling price is calculated automatically so partner rates stay consistent.</p>
+    </div>
+    <div class="hero-meta">
+      <article>
+        <span>Total</span>
+        <strong>{{ totalCount() }}</strong>
+      </article>
+      <article>
+        <span>Active</span>
+        <strong>{{ activeCount() }}</strong>
+      </article>
+      <article>
+        <span>Inactive</span>
+        <strong>{{ inactiveCount() }}</strong>
+      </article>
+      <button type="button" class="primary" (click)="openCreate()">New profile</button>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <label class="search">
+      <span class="sr-only">Search pricing profiles</span>
+      <input
+        type="search"
+        [value]="query()"
+        (input)="onQueryInput($any($event.target).value)"
+        placeholder="Search code, name, or description"
+      />
+    </label>
+    <div class="chips" role="tablist" aria-label="Filter by status">
+      @for (filter of filters; track filter.id) {
+        <button
+          type="button"
+          role="tab"
+          class="chip"
+          [class.active]="statusFilter() === filter.id"
+          [attr.aria-selected]="statusFilter() === filter.id"
+          (click)="setStatus(filter.id)"
+        >
+          {{ filter.label }}
+        </button>
+      }
+    </div>
+    <button type="button" class="ghost" (click)="refresh()" [disabled]="loading()">Refresh</button>
+  </div>
+
+  @if (notice()) {
+    <p class="banner ok" role="status">{{ notice() }}</p>
+  }
+  @if (error() && !editorOpen()) {
+    <p class="banner bad" role="alert">{{ error() }}</p>
+  }
+
+  <div class="table-wrap">
+    <p-table
+      #dt
+      [value]="profiles()"
+      dataKey="id"
+      [lazy]="true"
+      [paginator]="true"
+      [rows]="pageSize"
+      [totalRecords]="totalRecords()"
+      [loading]="loading()"
+      [rowsPerPageOptions]="pageSizeOptions"
+      [alwaysShowPaginator]="true"
+      [sortField]="'minimumSmsVolume'"
+      [sortOrder]="1"
+      [rowHover]="true"
+      [showCurrentPageReport]="true"
+      currentPageReportTemplate="Showing {first} to {last} of {totalRecords} profiles"
+      [tableStyle]="{ 'min-width': '62rem' }"
+      (onLazyLoad)="onLazyLoad($event)"
+      appendTo="body"
+    >
+      <ng-template #header>
+        <tr>
+          <th pSortableColumn="profileName">Profile <p-sortIcon field="profileName" /></th>
+          <th pSortableColumn="sellingPricePerSms">Selling price <p-sortIcon field="sellingPricePerSms" /></th>
+          <th pSortableColumn="minimumSmsVolume">Volume <p-sortIcon field="minimumSmsVolume" /></th>
+          <th>Top-up fee</th>
+          <th pSortableColumn="isDefault">Default <p-sortIcon field="isDefault" /></th>
+          <th pSortableColumn="isActive">Status <p-sortIcon field="isActive" /></th>
+          <th></th>
+        </tr>
+      </ng-template>
+      <ng-template #body let-profile>
+        <tr [class.dim]="!profile.isActive">
+          <td>
+            <strong>{{ profile.profileName }}</strong>
+            <small>{{ profile.profileCode }} · {{ billingLabel(profile.billingType) }}</small>
+          </td>
+          <td>
+            <strong>{{ formatMoney(profile.sellingPricePerSms, profile.currencyCode) }}</strong>
+            <small>{{ formatMoney(profile.providerCostPerSms, profile.currencyCode) }} + {{ formatMoney(profile.topupFeePerSms, profile.currencyCode) }} fee</small>
+          </td>
+          <td>{{ volumeLabel(profile) }}</td>
+          <td>
+            {{ formatMoney(profile.topupFeePerSms, profile.currencyCode) }}
+          </td>
+          <td>
+            @if (profile.isDefault) {
+              <span class="pill live">Default</span>
+            } @else {
+              <span class="muted">—</span>
+            }
+          </td>
+          <td><span class="pill" [class.live]="profile.isActive">{{ profile.isActive ? 'active' : 'inactive' }}</span></td>
+          <td class="actions">
+            <button type="button" class="link" (click)="openEdit(profile)">Edit</button>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template #emptymessage>
+        <tr>
+          <td colspan="7">
+            <div class="empty-inline">
+              <h3>{{ query() ? 'No matches' : 'No pricing profiles yet' }}</h3>
+              <p>{{ query() ? 'Try a different search term.' : 'Create STARTER, BUSINESS, PROFESSIONAL, or ENTERPRISE plans.' }}</p>
+              @if (!query() && statusFilter() === 'all') {
+                <button type="button" class="primary" (click)="openCreate()">Create profile</button>
+              }
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+</section>
+
+@if (editorOpen()) {
+  <div class="overlay" (click)="closeEditor()">
+    <section class="sheet" role="dialog" aria-modal="true" [attr.aria-label]="editing() ? 'Edit pricing profile' : 'Create pricing profile'" (click)="$event.stopPropagation()">
+      <header>
+        <p class="kicker">{{ editing() ? 'Edit' : 'Create' }}</p>
+        <h3>{{ editing() ? editing()!.profileName : 'New pricing profile' }}</h3>
+      </header>
+
+      @if (error() && editorOpen()) {
+        <p class="banner bad" role="alert">{{ error() }}</p>
+      }
+
+      <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+        <div class="split">
+          <label class="field">
+            <span>Code</span>
+            <input type="text" formControlName="profileCode" placeholder="STARTER" />
+            @if (form.controls.profileCode.touched && form.controls.profileCode.invalid) {
+              <small>Code is required.</small>
+            }
+          </label>
+          <label class="field">
+            <span>Name</span>
+            <input type="text" formControlName="profileName" placeholder="Starter Profile" />
+            @if (form.controls.profileName.touched && form.controls.profileName.invalid) {
+              <small>Name is required.</small>
+            }
+          </label>
+        </div>
+        <label class="field">
+          <span>Description</span>
+          <input type="text" formControlName="description" placeholder="For low-volume customers" />
+        </label>
+        <div class="split">
+          <label class="field">
+            <span>Currency</span>
+            <select formControlName="currencyCode">
+              @for (code of currencies; track code) {
+                <option [value]="code">{{ code }}</option>
+              }
+            </select>
+          </label>
+          <label class="field">
+            <span>Billing type</span>
+            <select formControlName="billingType">
+              @for (type of billingTypes; track type.id) {
+                <option [value]="type.id">{{ type.label }}</option>
+              }
+            </select>
+          </label>
+        </div>
+        <div class="split">
+          <label class="field">
+            <span>Provider cost / SMS</span>
+            <input type="number" formControlName="providerCostPerSms" min="0" step="0.0001" />
+          </label>
+          <label class="field">
+            <span class="field-label">
+              Top-up fee / SMS
+              <button
+                type="button"
+                class="info-tip"
+                data-tip="Fixed amount added to provider cost"
+                aria-label="Fixed amount added to provider cost"
+              >i</button>
+            </span>
+            <input type="number" formControlName="topupFeePerSms" min="0" step="0.0001" />
+          </label>
+        </div>
+        <div class="selling-box">
+          <span>Selling price / SMS</span>
+          <strong>{{ formatMoney(sellingPrice(), form.controls.currencyCode.value) }}</strong>
+          <small>{{ formatMoney(form.controls.providerCostPerSms.value, form.controls.currencyCode.value) }} + {{ formatMoney(form.controls.topupFeePerSms.value, form.controls.currencyCode.value) }}</small>
+        </div>
+        <div class="split">
+          <label class="field">
+            <span>Minimum volume</span>
+            <input type="number" formControlName="minimumSmsVolume" min="0" step="1" />
+          </label>
+          <label class="field">
+            <span>Maximum volume</span>
+            <input type="number" formControlName="maximumSmsVolume" min="0" step="1" placeholder="Unlimited" />
+          </label>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" formControlName="isDefault" />
+          <span>Default plan for new partners</span>
+        </label>
+        <label class="toggle">
+          <input type="checkbox" formControlName="isActive" />
+          <span>Active</span>
+        </label>
+        <div class="sheet-actions">
+          <button type="button" class="ghost" (click)="closeEditor()" [disabled]="saving()">Cancel</button>
+          <button type="submit" class="primary" [disabled]="saving()">
+            {{ saving() ? 'Saving…' : editing() ? 'Save changes' : 'Create profile' }}
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+}

@@ -5,6 +5,7 @@ import { Table, TableModule } from 'primeng/table';
 import type { TableLazyLoadEvent } from 'primeng/types/table';
 import { AuthService } from '../../core/auth/auth.service';
 import { fromLazyEvent } from '../../core/api/paged-list';
+import { PartnersApi, PartnerLookup } from '../partners/partners.api';
 import { UsersApi } from './users.api';
 import { SystemRole, SystemUser, UserPayload } from './users.model';
 
@@ -18,6 +19,7 @@ type StatusFilter = 'all' | 'active' | 'inactive';
 })
 export class Users implements OnDestroy {
   private readonly api = inject(UsersApi);
+  private readonly partnersApi = inject(PartnersApi);
   readonly auth = inject(AuthService);
   private readonly fb = inject(FormBuilder);
   private noticeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -28,6 +30,7 @@ export class Users implements OnDestroy {
 
   readonly users = signal<SystemUser[]>([]);
   readonly roles = signal<SystemRole[]>([]);
+  readonly partners = signal<PartnerLookup[]>([]);
   readonly loading = signal(false);
   readonly saving = signal(false);
   readonly error = signal<string | null>(null);
@@ -57,6 +60,7 @@ export class Users implements OnDestroy {
     username: ['', [Validators.required, Validators.minLength(3)]],
     email: ['', [Validators.required, Validators.email]],
     roleCode: ['', Validators.required],
+    partnerId: [''],
     password: [''],
     isActive: [true],
   });
@@ -121,6 +125,10 @@ export class Users implements OnDestroy {
     return match?.roleName || roleCode.replaceAll('_', ' ');
   }
 
+  needsPartner(): boolean {
+    return !this.auth.isPartner() && this.form.controls.roleCode.value === 'API_USER';
+  }
+
   isSelf(user: SystemUser): boolean {
     return user.id === this.auth.user()?.id;
   }
@@ -134,13 +142,14 @@ export class Users implements OnDestroy {
       username: '',
       email: '',
       roleCode: '',
+      partnerId: '',
       password: '',
       isActive: true,
     });
     this.form.controls.password.setValidators([Validators.required, Validators.minLength(8)]);
     this.form.controls.password.updateValueAndValidity();
     this.editorOpen.set(true);
-    await this.loadRoles();
+    await Promise.all([this.loadRoles(), this.loadPartners()]);
   }
 
   async openEdit(user: SystemUser): Promise<void> {
@@ -152,13 +161,14 @@ export class Users implements OnDestroy {
       username: user.username,
       email: user.email ?? '',
       roleCode: user.roleCode ?? '',
+      partnerId: user.partnerId ?? '',
       password: '',
       isActive: user.isActive !== false,
     });
     this.form.controls.password.setValidators([Validators.minLength(8)]);
     this.form.controls.password.updateValueAndValidity();
     this.editorOpen.set(true);
-    await this.loadRoles();
+    await Promise.all([this.loadRoles(), this.loadPartners()]);
   }
 
   closeEditor(): void {
@@ -191,6 +201,13 @@ export class Users implements OnDestroy {
       roleCode: value.roleCode,
       isActive: value.isActive,
     };
+    if (this.needsPartner()) {
+      if (!value.partnerId) {
+        this.error.set('Select the partner this API user belongs to.');
+        return;
+      }
+      payload.partnerId = value.partnerId;
+    }
     if (value.password.trim()) {
       payload.password = value.password;
     }
@@ -290,6 +307,17 @@ export class Users implements OnDestroy {
       this.roles.set((await this.api.roles()) ?? []);
     } catch {
       this.roles.set([]);
+    }
+  }
+
+  private async loadPartners(): Promise<void> {
+    if (this.auth.isPartner()) {
+      return;
+    }
+    try {
+      this.partners.set((await this.partnersApi.lookup()) ?? []);
+    } catch {
+      this.partners.set([]);
     }
   }
 

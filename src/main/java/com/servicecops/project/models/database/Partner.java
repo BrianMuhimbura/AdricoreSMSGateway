@@ -50,10 +50,4 @@ public class Partner {
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
-
-    @ManyToOne
-    @JoinColumn(name = "sms_pricing_profile_id")
-    private SmsPricingProfile smsPricingProfile;
-
-    // Getters and setters
 }

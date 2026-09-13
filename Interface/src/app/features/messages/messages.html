@@ -56,9 +56,16 @@
       }
     </div>
     <button type="button" class="ghost" (click)="refresh()" [disabled]="loading()">Refresh</button>
+    @if (auth.isPartner()) {
+      <button type="button" class="ghost" (click)="openBulk()">Bulk SMS Upload</button>
+      <button type="button" class="primary" (click)="openTest()">Test SMS</button>
+    }
   </div>
 
-  @if (error() && !detailOpen()) {
+  @if (notice()) {
+    <p class="banner ok" role="status">{{ notice() }}</p>
+  }
+  @if (error() && !detailOpen() && !composer()) {
     <p class="banner bad" role="alert">{{ error() }}</p>
   }
 
@@ -219,6 +226,84 @@
       <div class="sheet-actions">
         <button type="button" class="ghost" (click)="closeDetail()">Close</button>
       </div>
+    </section>
+  </div>
+}
+
+@if (composer() === 'test') {
+  <div class="overlay" (click)="closeComposer()">
+    <section class="sheet" role="dialog" aria-modal="true" aria-label="Send test SMS" (click)="$event.stopPropagation()">
+      <header>
+        <p class="kicker">Send</p>
+        <h3>Test SMS</h3>
+        <p>Send one message through Africa's Talking. Successful sends are billed against your partner credit.</p>
+      </header>
+      @if (error() && composer() === 'test') {
+        <p class="banner bad" role="alert">{{ error() }}</p>
+      }
+      <form [formGroup]="testForm" (ngSubmit)="submitTest()" novalidate>
+        <label class="field">
+          <span>Phone number</span>
+          <input type="tel" formControlName="to" inputmode="tel" placeholder="2567XXXXXXXX" />
+          @if (testForm.controls.to.touched && testForm.controls.to.invalid) {
+            <small>Enter a valid mobile number.</small>
+          }
+        </label>
+        <label class="field">
+          <span>Message</span>
+          <textarea formControlName="text" rows="4" placeholder="Your test message"></textarea>
+          @if (testForm.controls.text.touched && testForm.controls.text.invalid) {
+            <small>Message text is required.</small>
+          }
+        </label>
+        <div class="sheet-actions">
+          <button type="button" class="ghost" (click)="closeComposer()" [disabled]="sending()">Cancel</button>
+          <button type="submit" class="primary" [disabled]="sending()">
+            {{ sending() ? 'Sending…' : 'Send test SMS' }}
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+}
+
+@if (composer() === 'bulk') {
+  <div class="overlay" (click)="closeComposer()">
+    <section class="sheet" role="dialog" aria-modal="true" aria-label="Bulk SMS upload" (click)="$event.stopPropagation()">
+      <header>
+        <p class="kicker">Send</p>
+        <h3>Bulk SMS Upload</h3>
+        <p>Upload a CSV or text file with one phone number per row. The same message is sent to every number, up to 100 recipients.</p>
+      </header>
+      @if (error() && composer() === 'bulk') {
+        <p class="banner bad" role="alert">{{ error() }}</p>
+      }
+      <form [formGroup]="bulkForm" (ngSubmit)="submitBulk()" novalidate>
+        <label class="field">
+          <span>Recipients file</span>
+          <input type="file" accept=".csv,.txt,text/csv,text/plain" (change)="onBulkFile($event)" />
+          <span class="hint">
+            @if (bulkPhones().length) {
+              {{ bulkFileName() }} · {{ bulkPhones().length }} number{{ bulkPhones().length === 1 ? '' : 's' }}
+            } @else {
+              First column should be the phone number. A header row of phone, to, or msisdn is skipped.
+            }
+          </span>
+        </label>
+        <label class="field">
+          <span>Message</span>
+          <textarea formControlName="text" rows="4" placeholder="Message to send to every recipient"></textarea>
+          @if (bulkForm.controls.text.touched && bulkForm.controls.text.invalid) {
+            <small>Message text is required.</small>
+          }
+        </label>
+        <div class="sheet-actions">
+          <button type="button" class="ghost" (click)="closeComposer()" [disabled]="sending()">Cancel</button>
+          <button type="submit" class="primary" [disabled]="sending() || !bulkPhones().length">
+            {{ sending() ? 'Sending…' : 'Send bulk SMS' }}
+          </button>
+        </div>
+      </form>
     </section>
   </div>
 }

@@ -29,6 +29,20 @@ export interface PagedListResponse<T> {
   todayCount?: number;
   topupCount?: number;
   consumptionCount?: number;
+  incomeCount?: number;
+  ledger?: {
+    control?: LedgerAccount;
+    operations?: LedgerAccount;
+    income?: LedgerAccount;
+  };
+}
+
+export interface LedgerAccount {
+  id?: string;
+  code?: string | null;
+  name?: string | null;
+  balance?: number | string;
+  currency?: string | null;
 }
 
 export function sortFieldOf(value: string | string[] | null | undefined): string | undefined {

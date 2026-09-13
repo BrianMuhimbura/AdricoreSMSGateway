@@ -14,8 +14,13 @@ import java.util.UUID;
 public interface CreditAccountRepository extends JpaRepository<CreditAccount, UUID> {
     Optional<CreditAccount> findByPartner(Partner partner);
     Optional<CreditAccount> findByPartner_Id(UUID partnerId);
+    Optional<CreditAccount> findByAccountCode(String accountCode);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select account from CreditAccount account where account.partner.id = :partnerId")
     Optional<CreditAccount> findByPartnerIdForUpdate(@Param("partnerId") UUID partnerId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select account from CreditAccount account where account.id = :id")
+    Optional<CreditAccount> findByIdForUpdate(@Param("id") UUID id);
 }

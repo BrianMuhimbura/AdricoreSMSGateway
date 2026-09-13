@@ -1,0 +1,187 @@
+<section class="docs" id="api-docs">
+  <header class="hero">
+    <div>
+      <p class="kicker">Developer guide</p>
+      <h2>SMS Gateway API</h2>
+      <p>
+        Send SMS against a partner wallet. Authenticate with a JWT issued to an
+        <strong>API User</strong>. Pricing follows the SMS profile attached to that partner.
+        Each accepted message writes a consumption transaction and deducts credit.
+      </p>
+    </div>
+    <div class="hero-actions no-print">
+      <button type="button" class="pdf-btn" (click)="downloadPdf()">Download PDF</button>
+      <small>Opens the print dialog. Choose <strong>Save as PDF</strong>.</small>
+    </div>
+  </header>
+
+  <div class="meta">
+    <article>
+      <span>Base URL</span>
+      <code>{{ baseUrl() }}</code>
+    </article>
+    <article>
+      <span>Protocol</span>
+      <strong>POST JSON</strong>
+    </article>
+    <article>
+      <span>Auth</span>
+      <strong>Bearer JWT</strong>
+    </article>
+    <article>
+      <span>Success</span>
+      <strong>returnCode 0</strong>
+    </article>
+  </div>
+
+  <nav class="toc no-print" aria-label="On this page">
+    <a href="#create-user">API user</a>
+    <a href="#login">Login</a>
+    <a href="#send">Send SMS</a>
+    <a href="#billing">Billing</a>
+    <a href="#envelope">Envelope</a>
+    <a href="#errors">Return codes</a>
+  </nav>
+
+  <section id="create-user">
+    <h3><span>1</span>Create an API user</h3>
+    <p>
+      In <strong>Users</strong>, create an account and assign the role <code>API_USER</code>.
+      Partner administrators can do this for their organisation. Back-office administrators must
+      also select the partner the user belongs to.
+    </p>
+    <ul>
+      <li>The user must be active and linked to a partner.</li>
+      <li>Use that username and password only for API access.</li>
+      <li>Any other role calling <code>SMS/sendSMS</code> receives <code>UNAUTHORIZED USER</code>.</li>
+    </ul>
+  </section>
+
+  <section id="login">
+    <h3><span>2</span>Login</h3>
+    <p><code>POST {{ baseUrl() }}/Auth/token/</code></p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Required</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>username</code></td>
+            <td>Yes</td>
+            <td>API user username</td>
+          </tr>
+          <tr>
+            <td><code>password</code></td>
+            <td>Yes</td>
+            <td>API user password</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <pre><button type="button" class="copy no-print" (click)="copy('login', loginExample())">{{ copied() === 'login' ? 'Copied' : 'Copy' }}</button>{{ loginExample() }}</pre>
+    <p>
+      Read the token from <code>returnObject.token</code> and send
+      <code>Authorization: Bearer &lt;token&gt;</code> on every SMS request. Tokens last 12 hours.
+    </p>
+    <pre><button type="button" class="copy no-print" (click)="copy('token', tokenExample())">{{ copied() === 'token' ? 'Copied' : 'Copy' }}</button>{{ tokenExample() }}</pre>
+  </section>
+
+  <section id="send">
+    <h3><span>3</span>Send SMS</h3>
+    <p><code>POST {{ baseUrl() }}/SMS/sendSMS/</code></p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Field</th>
+            <th>Required</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>to</code></td>
+            <td>Yes</td>
+            <td>One MSISDN, comma-separated numbers, or a JSON array. Ugandan numbers such as <code>07…</code> are normalised to <code>256…</code>. Maximum 100 recipients.</td>
+          </tr>
+          <tr>
+            <td><code>text</code></td>
+            <td>Yes</td>
+            <td>Message body. GSM messages over 160 characters split into 153-character segments.</td>
+          </tr>
+          <tr>
+            <td><code>from</code></td>
+            <td>No</td>
+            <td>Sender ID. Defaults to the gateway sender ID.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="label">Single recipient</p>
+    <pre><button type="button" class="copy no-print" (click)="copy('send', sendExample())">{{ copied() === 'send' ? 'Copied' : 'Copy' }}</button>{{ sendExample() }}</pre>
+    <p class="label">Batch</p>
+    <pre><button type="button" class="copy no-print" (click)="copy('batch', batchExample())">{{ copied() === 'batch' ? 'Copied' : 'Copy' }}</button>{{ batchExample() }}</pre>
+  </section>
+
+  <section id="billing">
+    <h3><span>4</span>Pricing and credit</h3>
+    <p>
+      Cost uses the SMS pricing profile currently attached to the partner.
+      <code>PER_SEGMENT</code> bills each segment; otherwise one SMS is one unit.
+      Credit is checked before send, deducted only after a successful provider response,
+      and a <code>CONSUMPTION</code> transaction is stored for every accepted message.
+    </p>
+    <ul>
+      <li>Insufficient wallet balance returns an error before any message is sent.</li>
+      <li>Failed recipients are not charged.</li>
+      <li>The response includes <code>cost</code>, <code>transactionId</code>, <code>balanceAfter</code>, and the profile used.</li>
+    </ul>
+  </section>
+
+  <section id="envelope">
+    <h3><span>5</span>Response envelope</h3>
+    <p>Every response uses the same wrapper. Batch sends also include a <code>messages</code> array.</p>
+    <pre><button type="button" class="copy no-print" (click)="copy('envelope', envelopeExample())">{{ copied() === 'envelope' ? 'Copied' : 'Copy' }}</button>{{ envelopeExample() }}</pre>
+  </section>
+
+  <section id="errors">
+    <h3><span>6</span>Return codes</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>returnCode</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>0</code></td>
+            <td>Success, or a partial send where at least one recipient was accepted</td>
+          </tr>
+          <tr>
+            <td><code>1</code></td>
+            <td>The provider rejected every recipient</td>
+          </tr>
+          <tr>
+            <td><code>401</code></td>
+            <td>Missing or invalid JWT — <code>AUTHENTICATION REQUIRED</code></td>
+          </tr>
+          <tr>
+            <td><code>403</code></td>
+            <td>The caller is not an active <code>API_USER</code> — <code>UNAUTHORIZED USER</code></td>
+          </tr>
+          <tr>
+            <td><code>500</code></td>
+            <td>Validation or processing error. <code>returnMessage</code> has the detail, for example insufficient credit.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</section>

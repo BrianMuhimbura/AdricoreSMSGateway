@@ -34,6 +34,13 @@ export const routes: Routes = [
         loadComponent: () => import('./features/partners/partners').then((m) => m.Partners),
       },
       {
+        path: 'pricing-profiles',
+        canActivate: [permissionGuard],
+        data: { permissions: [Permissions.MANAGE_PARTNERS] },
+        loadComponent: () =>
+          import('./features/pricing-profiles/pricing-profiles').then((m) => m.PricingProfiles),
+      },
+      {
         path: 'profile',
         canActivate: [permissionGuard],
         data: { partnerOnly: true },
@@ -64,6 +71,14 @@ export const routes: Routes = [
         data: { permissions: [Permissions.VIEW_TRANSACTIONS] },
         loadComponent: () =>
           import('./features/transactions/transactions').then((m) => m.Transactions),
+      },
+      {
+        path: 'api-docs',
+        canActivate: [permissionGuard],
+        data: {
+          permissions: [Permissions.PARTNER_PORTAL, Permissions.MANAGE_USERS, Permissions.MANAGE_PARTNERS],
+        },
+        loadComponent: () => import('./features/api-docs/api-docs').then((m) => m.ApiDocs),
       },
     ],
   },

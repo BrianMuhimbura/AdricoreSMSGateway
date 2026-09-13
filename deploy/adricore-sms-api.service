@@ -1,0 +1,25 @@
+[Unit]
+Description=Adricore SMS Gateway API
+After=network.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=adricore
+Group=adricore
+WorkingDirectory=/opt/adricore-sms
+EnvironmentFile=-/etc/adricore-sms/api.env
+ExecStart=/usr/bin/java -Xms256m -Xmx512m -jar /opt/adricore-sms/adricore-sms-gateway.jar
+SuccessExitStatus=143
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=adricore-sms-api
+
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

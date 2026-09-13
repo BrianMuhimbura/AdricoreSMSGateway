@@ -26,3 +26,23 @@ export interface OutboundMessage {
   createdAt?: string;
   updatedAt?: string;
 }
+
+export interface SmsSendResult {
+  to?: string;
+  messageId?: string;
+  upstreamId?: string | null;
+  status?: MessageStatus | string;
+  cost?: number | string;
+  success?: boolean;
+  error?: string;
+  accepted?: number;
+  requested?: number;
+  charged?: number | string;
+  balanceAfter?: number | string;
+  messages?: Array<{
+    to: string;
+    success?: boolean;
+    status?: string;
+    error?: string;
+  }>;
+}

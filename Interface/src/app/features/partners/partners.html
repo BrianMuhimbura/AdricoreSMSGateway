@@ -81,6 +81,7 @@
           <th pSortableColumn="name">Partner <p-sortIcon field="name" /></th>
           <th pSortableColumn="email">Contact <p-sortIcon field="email" /></th>
           <th pSortableColumn="currency">Currency <p-sortIcon field="currency" /></th>
+          <th>Plan</th>
           <th pSortableColumn="status">Status <p-sortIcon field="status" /></th>
           <th pSortableColumn="updatedAt">Updated <p-sortIcon field="updatedAt" /></th>
           <th></th>
@@ -100,6 +101,10 @@
             <small>{{ partner.phone || 'No phone' }}</small>
           </td>
           <td>{{ partner.currency }}</td>
+          <td>
+            <span class="pill plan">{{ partner.pricingProfileName || partner.pricingProfile?.profileName || 'Starter' }}</span>
+            <small>{{ partner.pricingProfileCode || partner.pricingProfile?.profileCode || 'STARTER' }}</small>
+          </td>
           <td><span class="pill" [class.live]="partner.status === 'active'">{{ partner.status }}</span></td>
           <td>{{ partner.updatedAt ? (partner.updatedAt | date: 'mediumDate') : '—' }}</td>
           <td class="actions">
@@ -114,7 +119,7 @@
       </ng-template>
       <ng-template #emptymessage>
         <tr>
-          <td colspan="6">
+          <td colspan="7">
             <div class="empty-inline">
               <h3>{{ query() ? 'No matches' : 'No partners yet' }}</h3>
               <p>{{ query() ? 'Try a different search term.' : 'Add the first operator to start routing SMS traffic.' }}</p>
@@ -181,6 +186,20 @@
             </select>
           </label>
         </div>
+        <label class="field">
+          <span>Pricing profile</span>
+          <select formControlName="pricingProfileId">
+            <option value="">STARTER (assigned if none selected)</option>
+            @for (profile of profileChoices(); track profile.id) {
+              <option [value]="profile.id">
+                {{ profile.profileName }} ({{ profile.profileCode }})
+              </option>
+            }
+          </select>
+          @if (!editing()) {
+            <span class="hint">If you don't choose a plan, STARTER is assigned.</span>
+          }
+        </label>
         @if (editing()) {
           <label class="field">
             <span>Status</span>

@@ -26,10 +26,22 @@
     </div>
 
     <div class="stats">
+      @if (partner.pricingProfile; as plan) {
+        <article class="plan-card">
+          <span>SMS plan</span>
+          <strong>{{ plan.profileName }}</strong>
+          <small>{{ plan.profileCode }} · {{ formatMoney(plan.sellingPricePerSms, plan.currencyCode || partner.currency) }} per SMS</small>
+        </article>
+      }
       <article>
         <span>Available</span>
         <strong>{{ formatMoney(credit()?.available ?? credit()?.balance, credit()?.currency) }}</strong>
         <small>Ready to send SMS</small>
+      </article>
+      <article>
+        <span>SMS remaining</span>
+        <strong>{{ remainingSms() == null ? '—' : remainingSms()!.toLocaleString() }}</strong>
+        <small>At your current plan price</small>
       </article>
       <article>
         <span>Reserved</span>
@@ -42,6 +54,43 @@
         <small>{{ credit()?.currency || partner.currency }} credit account</small>
       </article>
     </div>
+
+    @if (plans().length) {
+      <section class="card plans">
+        <header>
+          <p class="kicker">Plans</p>
+          <h3>SMS profiles</h3>
+          <p>Each plan is a volume band. Top up to the credit range if you want enough balance to send that many messages at that plan price.</p>
+        </header>
+        <div class="plan-grid">
+          @for (plan of plans(); track plan.id) {
+            <article [class.current]="isCurrentPlan(plan)">
+              <div class="plan-head">
+                <strong>{{ plan.profileName }}</strong>
+                @if (isCurrentPlan(plan)) {
+                  <span class="pill live">Current</span>
+                }
+              </div>
+              <p class="plan-code">{{ plan.profileCode }}</p>
+              <dl>
+                <div>
+                  <dt>SMS range</dt>
+                  <dd>{{ volumeRange(plan) }}</dd>
+                </div>
+                <div>
+                  <dt>Credit to cover range</dt>
+                  <dd>{{ creditRange(plan) }}</dd>
+                </div>
+                <div>
+                  <dt>Unit price</dt>
+                  <dd>{{ formatMoney(plan.sellingPricePerSms, plan.currencyCode) }} · {{ billingLabel(plan.billingType) }}</dd>
+                </div>
+              </dl>
+            </article>
+          }
+        </div>
+      </section>
+    }
 
     <section class="card details">
       <header>

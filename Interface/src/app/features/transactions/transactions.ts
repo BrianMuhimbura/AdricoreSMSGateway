@@ -2,12 +2,12 @@ import { Component, OnDestroy, ViewChild, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { Table, TableModule } from 'primeng/table';
 import type { TableLazyLoadEvent } from 'primeng/types/table';
-import { fromLazyEvent } from '../../core/api/paged-list';
+import { LedgerAccount, fromLazyEvent } from '../../core/api/paged-list';
 import { AuthService } from '../../core/auth/auth.service';
 import { TransactionsApi } from './transactions.api';
-import { CreditTx } from './transactions.model';
+import { CreditTx, LedgerAccountRef } from './transactions.model';
 
-type StatusFilter = 'all' | 'TOPUP' | 'CONSUMPTION' | 'REFUND' | 'REVERSAL' | 'ALLOCATE';
+type StatusFilter = 'all' | 'TOPUP' | 'CONSUMPTION' | 'INCOME' | 'REFUND' | 'REVERSAL' | 'ALLOCATE';
 
 @Component({
   selector: 'app-transactions',
@@ -32,6 +32,10 @@ export class Transactions implements OnDestroy {
   readonly totalCount = signal(0);
   readonly topupCount = signal(0);
   readonly consumptionCount = signal(0);
+  readonly incomeCount = signal(0);
+  readonly control = signal<LedgerAccount | null>(null);
+  readonly operations = signal<LedgerAccount | null>(null);
+  readonly income = signal<LedgerAccount | null>(null);
 
   readonly pageSize = 10;
   readonly pageSizeOptions = [10, 20, 50];
@@ -39,9 +43,14 @@ export class Transactions implements OnDestroy {
     { id: 'all', label: 'All' },
     { id: 'TOPUP', label: 'Top up' },
     { id: 'CONSUMPTION', label: 'Consumption' },
+    { id: 'INCOME', label: 'Income' },
     { id: 'REFUND', label: 'Refund' },
     { id: 'REVERSAL', label: 'Reversal' },
   ];
+
+  get visibleFilters() {
+    return this.auth.isPartner() ? this.filters.filter((filter) => filter.id !== 'INCOME') : this.filters;
+  }
 
   ngOnDestroy(): void {
     if (this.searchTimer) {
@@ -80,6 +89,30 @@ export class Transactions implements OnDestroy {
     return type.replaceAll('_', ' ').toLowerCase();
   }
 
+  typeClass(type?: string | null): string {
+    if (type === 'TOPUP' || type === 'REFUND') {
+      return 'live';
+    }
+    if (type === 'INCOME') {
+      return 'plan';
+    }
+    if (type === 'CONSUMPTION') {
+      return 'bad';
+    }
+    return '';
+  }
+
+  accountLabel(account?: LedgerAccountRef | null): string {
+    if (!account) {
+      return '—';
+    }
+    return account.name || account.code || account.partnerCode || '—';
+  }
+
+  accountCode(account?: LedgerAccountRef | null): string {
+    return account?.code || account?.partnerCode || '';
+  }
+
   formatMoney(value: number | string | null | undefined): string {
     if (value == null || value === '') {
       return '—';
@@ -114,6 +147,10 @@ export class Transactions implements OnDestroy {
       this.totalCount.set(page.totalCount ?? page.totalRecords ?? 0);
       this.topupCount.set(page.topupCount ?? 0);
       this.consumptionCount.set(page.consumptionCount ?? 0);
+      this.incomeCount.set(page.incomeCount ?? 0);
+      this.control.set(page.ledger?.control ?? null);
+      this.operations.set(page.ledger?.operations ?? null);
+      this.income.set(page.ledger?.income ?? null);
     } catch (error) {
       this.error.set(error instanceof Error ? error.message : 'Unable to load transactions.');
     } finally {

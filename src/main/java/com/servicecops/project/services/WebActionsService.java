@@ -7,6 +7,7 @@ import com.servicecops.project.services.auth.AuthService;
 import com.servicecops.project.services.external.ExternalSMSGateway;
 import com.servicecops.project.services.messages.MessagesService;
 import com.servicecops.project.services.partners.PartnersService;
+import com.servicecops.project.services.pricing.SmsPricingProfilesService;
 import com.servicecops.project.services.sasula.SasulaService;
 import com.servicecops.project.services.transactions.TransactionsService;
 import com.servicecops.project.services.users.UsersService;
@@ -26,6 +27,7 @@ public class WebActionsService {
     private final AuditLogsService auditLogsService;
     private final TransactionsService transactionsService;
     private final SasulaService sasulaService;
+    private final SmsPricingProfilesService smsPricingProfilesService;
     private final AuditLogService auditLogService;
 
     public OperationReturnObject processAction(String service, String action, JSONObject payload) {
@@ -56,6 +58,7 @@ public class WebActionsService {
             case "AuditLogs" -> auditLogsService.process(action, payload);
             case "Transactions" -> transactionsService.process(action, payload);
             case "Sasula" -> sasulaService.process(action, payload);
+            case "SmsPricingProfiles" -> smsPricingProfilesService.process(action, payload);
             default -> {
                 OperationReturnObject res = new OperationReturnObject();
                 res.setReturnCodeAndReturnMessage(404, "UNKNOWN SERVICE");

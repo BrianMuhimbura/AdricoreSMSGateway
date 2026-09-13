@@ -5,6 +5,7 @@ import com.servicecops.project.models.database.SystemRoleModel;
 import com.servicecops.project.models.database.SystemUserModel;
 import com.servicecops.project.repositories.SystemRoleRepository;
 import com.servicecops.project.repositories.SystemUserRepository;
+import com.servicecops.project.service.PartnerService;
 import com.servicecops.project.services.base.BaseWebActionsService;
 import com.servicecops.project.utils.OperationReturnObject;
 import com.servicecops.project.utils.PagedQuery;
@@ -30,6 +31,8 @@ import java.util.UUID;
 @Service
 public class UsersService extends BaseWebActionsService {
     private static final String PARTNER_ADMIN = "PARTNER_ADMIN";
+    private static final String API_USER = "API_USER";
+    private static final Set<String> PARTNER_ROLES = Set.of(PARTNER_ADMIN, API_USER);
     private static final int MIN_PASSWORD_LENGTH = 8;
     private static final Set<String> SORT_FIELDS = Set.of(
             "username", "firstName", "lastName", "email", "roleCode", "isActive", "createdAt", "lastLoggedInAt"
@@ -37,6 +40,7 @@ public class UsersService extends BaseWebActionsService {
 
     private final SystemUserRepository systemUserRepository;
     private final SystemRoleRepository systemRoleRepository;
+    private final PartnerService partnerService;
     private final PasswordEncoder passwordEncoder;
 
     @Transactional
@@ -51,6 +55,7 @@ public class UsersService extends BaseWebActionsService {
         String lastName = requiredText(request, "lastName");
         String roleCode = requiredText(request, "roleCode");
         ensureRoleAllowed(roleCode, scopedPartnerId);
+        UUID partnerId = resolvePartnerId(request, scopedPartnerId, roleCode);
 
         validatePassword(password);
         ensureRoleExists(roleCode);
@@ -65,7 +70,7 @@ public class UsersService extends BaseWebActionsService {
                 .password(passwordEncoder.encode(password))
                 .roleCode(roleCode)
                 .isActive(request.containsKey("isActive") ? request.getBoolean("isActive") : Boolean.TRUE)
-                .partnerId(scopedPartnerId)
+                .partnerId(partnerId)
                 .createdAt(new Timestamp(System.currentTimeMillis()))
                 .build();
 
@@ -108,6 +113,12 @@ public class UsersService extends BaseWebActionsService {
             ensureRoleAllowed(roleCode, scopedPartnerId);
             ensureRoleExists(roleCode);
             user.setRoleCode(roleCode);
+            if (API_USER.equals(roleCode) && user.getPartnerId() == null) {
+                user.setPartnerId(resolvePartnerId(request, scopedPartnerId, roleCode));
+            }
+        }
+        if (hasText(request, "partnerId") && scopedPartnerId == null) {
+            user.setPartnerId(resolvePartnerId(request, null, user.getRoleCode()));
         }
         if (request.containsKey("isActive") && request.get("isActive") != null) {
             user.setIsActive(request.getBoolean("isActive"));
@@ -165,7 +176,7 @@ public class UsersService extends BaseWebActionsService {
     protected OperationReturnObject roles(JSONObject request) {
         UUID scopedPartnerId = authorizeAndScope();
         List<SystemRoleModel> roles = scopedPartnerId != null
-                ? systemRoleRepository.findFirstByRoleCode(PARTNER_ADMIN).stream().toList()
+                ? systemRoleRepository.findByRoleCodeInOrderByRoleNameAsc(PARTNER_ROLES)
                 : systemRoleRepository.findAllByOrderByRoleNameAsc();
         List<Map<String, Object>> payload = roles.stream()
                 .map(role -> {
@@ -208,9 +219,38 @@ public class UsersService extends BaseWebActionsService {
         return user;
     }
 
+    private UUID resolvePartnerId(JSONObject request, UUID scopedPartnerId, String roleCode) {
+        if (scopedPartnerId != null) {
+            return scopedPartnerId;
+        }
+        if (!API_USER.equals(roleCode)) {
+            return null;
+        }
+        String raw = optionalText(request, "partnerId");
+        if (!StringUtils.hasText(raw)) {
+            throw new IllegalArgumentException("API User accounts must be linked to a partner");
+        }
+        UUID partnerId;
+        try {
+            partnerId = UUID.fromString(raw.trim());
+        } catch (IllegalArgumentException error) {
+            throw new IllegalArgumentException("Invalid partnerId");
+        }
+        partnerService.findById(partnerId)
+                .orElseThrow(() -> new IllegalArgumentException("Partner not found"));
+        return partnerId;
+    }
+
+    private String optionalText(JSONObject request, String field) {
+        if (!hasText(request, field)) {
+            return null;
+        }
+        return request.getString(field).trim();
+    }
+
     private void ensureRoleAllowed(String roleCode, UUID scopedPartnerId) {
-        if (scopedPartnerId != null && !PARTNER_ADMIN.equals(roleCode)) {
-            throw new IllegalArgumentException("Partners can only assign the Partner Admin role");
+        if (scopedPartnerId != null && !PARTNER_ROLES.contains(roleCode)) {
+            throw new IllegalArgumentException("Partners can only assign Partner Admin or API User");
         }
     }
 

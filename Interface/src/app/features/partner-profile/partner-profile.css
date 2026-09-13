@@ -72,6 +72,24 @@
   grid-template-columns: 1fr;
 }
 
+.stats article.plan-card {
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, #48d5c6 35%, transparent), transparent 46%),
+    linear-gradient(135deg, #0b3a5b 0%, #0f6d74 58%, #148c91 100%);
+  color: white;
+  border: 0;
+  box-shadow: 0 18px 40px rgb(11 58 91 / 28%);
+}
+
+.stats article.plan-card span,
+.stats article.plan-card small {
+  color: rgb(255 255 255 / 82%);
+}
+
+.stats article.plan-card strong {
+  color: white;
+}
+
 .stats article {
   padding: 1rem 1.05rem;
   display: grid;
@@ -102,6 +120,84 @@
 
 .card h3 {
   font-size: 1.15rem;
+}
+
+.plans header p:last-child {
+  margin: 0;
+  max-width: 46rem;
+  color: var(--color-muted);
+}
+
+.plan-grid {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.plan-grid article {
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+  padding: 1rem 1.05rem;
+  background: #f8fafc;
+}
+
+.plan-grid article.current {
+  border-color: color-mix(in srgb, var(--color-teal) 55%, var(--color-line));
+  background: color-mix(in srgb, var(--color-teal) 8%, white);
+}
+
+.plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.plan-head strong {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  color: var(--color-navy);
+}
+
+.plan-code {
+  margin: 0.2rem 0 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.plan-grid dl {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.plan-grid dt {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+}
+
+.plan-grid dd {
+  margin: 0.15rem 0 0;
+  color: var(--color-navy);
+  font-weight: 700;
+}
+
+@media (min-width: 720px) {
+  .plan-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .plan-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .details dl {
@@ -175,7 +271,11 @@
   }
 
   .stats {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .plan-card {
+    grid-column: 1 / -1;
   }
 
   .details dl {

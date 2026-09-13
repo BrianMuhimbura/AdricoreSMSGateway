@@ -106,6 +106,10 @@ public class AfricasTalkingSmsService {
     }
 
     public SendResult dispatch(String phoneNumber, String message) {
+        return dispatch(phoneNumber, message, properties.getSenderId());
+    }
+
+    public SendResult dispatch(String phoneNumber, String message, String from) {
         if (!StringUtils.hasText(phoneNumber) || !StringUtils.hasText(message)) {
             log.error("Phone number or message empty - aborting sendSms");
             return SendResult.failed(null);
@@ -113,8 +117,8 @@ public class AfricasTalkingSmsService {
         try {
             String apiKey = properties.getApiKey();
             String username = properties.getUsername();
-            String senderId = properties.getSenderId();
-            String endpoint = properties.getEndpoint();
+            String senderId = StringUtils.hasText(from) ? from.trim() : properties.getSenderId();
+            String endpoint = properties.messagingUrl();
 
             log.info("Africa's Talking configuration: username='{}', senderId='{}', endpoint='{}'", username, senderId, endpoint);
             if (!StringUtils.hasText(apiKey) || !StringUtils.hasText(username) || !StringUtils.hasText(endpoint)) {

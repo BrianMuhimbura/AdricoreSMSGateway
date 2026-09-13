@@ -32,10 +32,10 @@ import java.util.UUID;
 @Service
 public class AuditLogService {
     private static final Set<String> READ_ACTIONS = Set.of(
-            "list", "get", "lookup", "roles", "login", "profile", "queryCustomer", "queryCustomerReferenceDetails"
+            "list", "get", "lookup", "roles", "login", "token", "profile", "queryCustomer", "queryCustomerReferenceDetails", "paymentStatus"
     );
     private static final Set<String> SERVICES = Set.of(
-            "Auth", "Users", "Partners", "Messages", "SMS", "AuditLogs", "Transactions", "Sasula"
+            "Auth", "Users", "Partners", "Messages", "SMS", "AuditLogs", "Transactions", "Sasula", "SmsPricingProfiles"
     );
     private static final Set<String> SENSITIVE_KEYS = Set.of(
             "password", "currentpassword", "newpassword", "confirmpassword",

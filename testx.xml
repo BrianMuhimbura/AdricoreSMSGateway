@@ -1,0 +1,18 @@
+2026-09-12T22:23:41.969+03:00  INFO 224510 --- [p1337622525-112] c.s.p.i.s.p.SasulaSoapLoggingInterceptor : Sasula SOAP request:
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
+    <SOAP-ENV:Header/>
+    <SOAP-ENV:Body>
+        <ns3:BusinessPaymentRequest xmlns:ns3="http://webservices.sasulapayments.servicecops.com/">
+            <debitRequest>
+                <amount>15000</amount>
+                <businessPaymentReference>ADRS100013</businessPaymentReference>
+                <callbackUrl>https://sms.adricore.com/sasula/payments/callback</callbackUrl>
+                <channelCode>ADRICORE</channelCode>
+                <channepPassword>***</channepPassword>
+                <customerPhone>256776000954</customerPhone>
+                <externalTransactionId>TOP7cbafb67bf3e460eb3a07ee71401ac1d</externalTransactionId>
+                <reason>SMS credit top-up 24bcbdaa-5d97-40eb-9687-653e1d2fc7b3</reason>
+            </debitRequest>
+        </ns3:BusinessPaymentRequest>
+    </SOAP-ENV:Body>
+</SOAP-ENV:Envelope>

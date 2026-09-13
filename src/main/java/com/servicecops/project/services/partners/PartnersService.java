@@ -1,13 +1,19 @@
 package com.servicecops.project.services.partners;
 
 import com.alibaba.fastjson2.JSONObject;
+import com.servicecops.project.models.database.BillingInvoice;
 import com.servicecops.project.models.database.CreditAccount;
 import com.servicecops.project.models.database.Organization;
 import com.servicecops.project.models.database.Partner;
+import com.servicecops.project.models.database.PartnerPaymentRequest;
+import com.servicecops.project.models.database.SmsPricingProfile;
 import com.servicecops.project.models.database.SystemUserModel;
 import com.servicecops.project.repositories.OrganizationRepository;
 import com.servicecops.project.repositories.PartnerRepository;
+import com.servicecops.project.service.BillingInvoiceService;
 import com.servicecops.project.service.CreditAccountService;
+import com.servicecops.project.service.PartnerPricingService;
+import com.servicecops.project.service.PartnerTopupService;
 import com.servicecops.project.services.base.BaseWebActionsService;
 import com.servicecops.project.utils.OperationReturnObject;
 import com.servicecops.project.utils.PagedQuery;
@@ -41,6 +47,9 @@ public class PartnersService extends BaseWebActionsService {
     private final PartnerRepository partnerRepository;
     private final OrganizationRepository organizationRepository;
     private final CreditAccountService creditAccountService;
+    private final PartnerPricingService partnerPricingService;
+    private final BillingInvoiceService billingInvoiceService;
+    private final PartnerTopupService partnerTopupService;
 
     @Transactional
     protected OperationReturnObject create(JSONObject request) {
@@ -62,7 +71,12 @@ public class PartnersService extends BaseWebActionsService {
 
         Partner saved = partnerRepository.save(partner);
         creditAccountService.ensureFor(saved);
-        return success("Partner created", toPublicPartner(saved));
+        SmsPricingProfile profile = partnerPricingService.resolveRequested(
+                optionalLong(request, "pricingProfileId"),
+                optionalText(request, "pricingProfileCode")
+        );
+        partnerPricingService.assign(saved, profile, authenticatedUser().getUsername());
+        return success("Partner created", toPublicPartner(saved, profile));
     }
 
     @Transactional
@@ -105,7 +119,15 @@ public class PartnersService extends BaseWebActionsService {
         partner.setUpdatedAt(Instant.now());
 
         Partner saved = partnerRepository.save(partner);
-        return success("Partner updated", toPublicPartner(saved));
+        SmsPricingProfile profile = partnerPricingService.activeProfileFor(saved);
+        if (request.containsKey("pricingProfileId") || hasText(request, "pricingProfileCode")) {
+            profile = partnerPricingService.resolveRequested(
+                    optionalLong(request, "pricingProfileId"),
+                    optionalText(request, "pricingProfileCode")
+            );
+            partnerPricingService.assign(saved, profile, authenticatedUser().getUsername());
+        }
+        return success("Partner updated", toPublicPartner(saved, profile));
     }
 
     @Transactional
@@ -151,9 +173,17 @@ public class PartnersService extends BaseWebActionsService {
         PagedQuery.Request pageRequest = PagedQuery.from(request, "createdAt", -1);
         Specification<Partner> spec = partnerSpec(pageRequest.query(), request == null ? null : request.getString("status"));
         Page<Partner> page = partnerRepository.findAll(spec, PagedQuery.toPageable(pageRequest, SORT_FIELDS, "createdAt"));
+        List<Partner> partners = page.getContent();
+        Map<UUID, SmsPricingProfile> profiles = partnerPricingService.activeProfilesFor(
+                partners.stream().map(Partner::getId).toList()
+        );
+        SmsPricingProfile fallback = partners.isEmpty() ? null : partnerPricingService.defaultProfile();
 
         Map<String, Object> payload = PagedQuery.payload(
-                page.getContent().stream().map(this::toPublicPartner).toList(),
+                partners.stream().map(partner -> {
+                    SmsPricingProfile profile = profiles.get(partner.getId());
+                    return toPublicPartner(partner, profile != null ? profile : fallback);
+                }).toList(),
                 page,
                 pageRequest
         );
@@ -183,8 +213,40 @@ public class PartnersService extends BaseWebActionsService {
                 .orElseThrow(() -> new IllegalArgumentException("Partner not found"));
         CreditAccount account = creditAccountService.ensureFor(partner);
         Map<String, Object> payload = toPublicPartner(partner);
-        payload.put("credit", toPublicCredit(account));
+        payload.put("credit", toPublicCredit(account, partner.getId()));
+        payload.put("pricingCatalog", partnerPricingService.catalog());
         return success("Partner profile found", payload);
+    }
+
+    @Transactional
+    protected OperationReturnObject requestTopup(JSONObject request) {
+        Partner partner = requirePortalPartner(true);
+        BigDecimal amount = parseAmount(request.get("amount"));
+        BillingInvoice invoice = partnerTopupService.createInvoice(partner, amount);
+        return success("Top-up request created", partnerTopupService.toTopupResult(partner, invoice, null));
+    }
+
+    @Transactional
+    protected OperationReturnObject payNow(JSONObject request) {
+        Partner partner = requirePortalPartner(true);
+        UUID invoiceId = parseId(requiredText(request, "invoiceId"), "invoiceId");
+        String customerPhone = requiredText(request, "customerPhone");
+        PartnerPaymentRequest payment = partnerTopupService.payNow(partner, invoiceId, customerPhone);
+        return success(
+                "Mobile money payment requested",
+                partnerTopupService.toTopupResult(partner, payment.getInvoice(), payment)
+        );
+    }
+
+    @Transactional
+    protected OperationReturnObject paymentStatus(JSONObject request) {
+        Partner partner = requirePortalPartner(false);
+        UUID paymentRequestId = parseId(requiredText(request, "paymentRequestId"), "paymentRequestId");
+        PartnerPaymentRequest payment = partnerTopupService.refreshStatusForPartner(paymentRequestId, partner.getId());
+        return success(
+                "Payment status found",
+                partnerTopupService.toTopupResult(partner, payment.getInvoice(), payment)
+        );
     }
 
     @Override
@@ -198,8 +260,26 @@ public class PartnersService extends BaseWebActionsService {
             case "list" -> list(request);
             case "lookup" -> lookup(request);
             case "profile" -> profile(request);
+            case "requestTopup" -> requestTopup(request);
+            case "payNow" -> payNow(request);
+            case "paymentStatus" -> paymentStatus(request);
             default -> throw new IllegalArgumentException("Action " + action + " not known in this context");
         };
+    }
+
+    private Partner requirePortalPartner(boolean requireActive) {
+        requiresAuth();
+        SystemUserModel user = authenticatedUser();
+        can(user.getUsername(), "PARTNER_PORTAL", "MANAGE_PARTNERS");
+        if (user.getPartnerId() == null) {
+            throw new IllegalArgumentException("No partner is linked to this account");
+        }
+        Partner partner = partnerRepository.findById(user.getPartnerId())
+                .orElseThrow(() -> new IllegalArgumentException("Partner not found"));
+        if (requireActive && !STATUS_ACTIVE.equalsIgnoreCase(partner.getStatus())) {
+            throw new IllegalArgumentException("Partner is inactive");
+        }
+        return partner;
     }
 
     private void authorize() {
@@ -293,6 +373,17 @@ public class PartnersService extends BaseWebActionsService {
         return request.getString(field).trim();
     }
 
+    private Long optionalLong(JSONObject request, String field) {
+        if (!request.containsKey(field) || request.get(field) == null || !StringUtils.hasText(String.valueOf(request.get(field)))) {
+            return null;
+        }
+        try {
+            return Long.valueOf(String.valueOf(request.get(field)).trim());
+        } catch (NumberFormatException error) {
+            throw new IllegalArgumentException("Invalid " + field);
+        }
+    }
+
     private boolean hasText(JSONObject request, String field) {
         return request.containsKey(field) && StringUtils.hasText(request.getString(field));
     }
@@ -332,6 +423,10 @@ public class PartnersService extends BaseWebActionsService {
     }
 
     private Map<String, Object> toPublicPartner(Partner partner) {
+        return toPublicPartner(partner, partnerPricingService.activeProfileFor(partner));
+    }
+
+    private Map<String, Object> toPublicPartner(Partner partner, SmsPricingProfile profile) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("id", partner.getId());
         data.put("partnerCode", partner.getPartnerCode());
@@ -347,10 +442,27 @@ public class PartnersService extends BaseWebActionsService {
         data.put("parentPartnerName", partner.getParentPartner() != null ? partner.getParentPartner().getName() : null);
         data.put("createdAt", partner.getCreatedAt());
         data.put("updatedAt", partner.getUpdatedAt());
+        if (profile != null) {
+            data.put("pricingProfileId", profile.getId());
+            data.put("pricingProfileCode", profile.getProfileCode());
+            data.put("pricingProfileName", profile.getProfileName());
+            Map<String, Object> pricing = new LinkedHashMap<>();
+            pricing.put("id", profile.getId());
+            pricing.put("profileCode", profile.getProfileCode());
+            pricing.put("profileName", profile.getProfileName());
+            pricing.put("description", profile.getDescription());
+            pricing.put("currencyCode", profile.getCurrencyCode());
+            pricing.put("sellingPricePerSms", profile.getSellingPricePerSms());
+            pricing.put("billingType", profile.getBillingType());
+            pricing.put("minimumSmsVolume", profile.getMinimumSmsVolume());
+            pricing.put("maximumSmsVolume", profile.getMaximumSmsVolume());
+            pricing.put("isDefault", Boolean.TRUE.equals(profile.getIsDefault()));
+            data.put("pricingProfile", pricing);
+        }
         return data;
     }
 
-    private Map<String, Object> toPublicCredit(CreditAccount account) {
+    private Map<String, Object> toPublicCredit(CreditAccount account, UUID partnerId) {
         BigDecimal balance = account.getBalance() == null ? BigDecimal.ZERO : account.getBalance();
         BigDecimal reserved = account.getReserved() == null ? BigDecimal.ZERO : account.getReserved();
         Map<String, Object> data = new LinkedHashMap<>();
@@ -359,8 +471,24 @@ public class PartnersService extends BaseWebActionsService {
         data.put("reserved", reserved);
         data.put("available", balance);
         data.put("total", balance.add(reserved));
+        data.put("pendingTopup", billingInvoiceService.sumPendingFor(partnerId));
         data.put("currency", account.getCurrency());
         data.put("updatedAt", account.getUpdatedAt());
         return data;
+    }
+
+    private BigDecimal parseAmount(Object raw) {
+        if (raw == null || !StringUtils.hasText(String.valueOf(raw))) {
+            throw new IllegalArgumentException("Amount cannot be empty");
+        }
+        try {
+            BigDecimal amount = new BigDecimal(String.valueOf(raw).trim());
+            if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("Amount must be greater than zero");
+            }
+            return amount;
+        } catch (NumberFormatException error) {
+            throw new IllegalArgumentException("Enter a valid amount");
+        }
     }
 }

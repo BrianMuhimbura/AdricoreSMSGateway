@@ -19,4 +19,5 @@ public class Permisions {
     Permission VIEW_TRANSACTIONS = new Permission("VIEW_TRANSACTIONS", "Can inspect credit and billing transactions", AppDomains.BACK_OFFICE, true);
     Permission SASULA_INTEGRATION = new Permission("SASULA_INTEGRATION", "Can query customers and post Sasula collections", AppDomains.BACK_OFFICE, true);
     Permission PARTNER_PORTAL = new Permission("PARTNER_PORTAL", "Can access the partner workspace", AppDomains.CLIENT_SIDE, false);
+    Permission SEND_SMS = new Permission("SEND_SMS", "Can send SMS through the partner API", AppDomains.CLIENT_SIDE, false);
 }

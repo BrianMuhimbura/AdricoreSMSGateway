@@ -189,6 +189,18 @@
               <small>Role is required.</small>
             }
           </label>
+          @if (needsPartner()) {
+            <label class="field">
+              <span>Partner</span>
+              <select formControlName="partnerId">
+                <option value="">Select a partner</option>
+                @for (partner of partners(); track partner.id) {
+                  <option [value]="partner.id">{{ partner.name }} · {{ partner.partnerCode }}</option>
+                }
+              </select>
+              <span class="hint">API users can only send SMS for the partner they belong to.</span>
+            </label>
+          }
           @if (editing()) {
             <label class="field">
               <span>Status</span>

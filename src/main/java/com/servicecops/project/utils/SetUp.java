@@ -11,6 +11,7 @@ import com.servicecops.project.repositories.SystemDomainRepository;
 import com.servicecops.project.repositories.SystemPermissionRepository;
 import com.servicecops.project.repositories.SystemRolePermissionRepository;
 import com.servicecops.project.repositories.SystemRoleRepository;
+import com.servicecops.project.service.CreditAccountService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -36,6 +37,8 @@ public class SetUp {
     private static final String PARTNER_PORTAL = "PARTNER_PORTAL";
     private static final String SASULA = "SASULA";
     private static final String SASULA_INTEGRATION = "SASULA_INTEGRATION";
+    private static final String API_USER = "API_USER";
+    private static final String SEND_SMS = "SEND_SMS";
     // Turn on or off system domains
     @Value("${USE_DOMAINS:true}")
     Boolean useDomains;
@@ -50,6 +53,7 @@ public class SetUp {
     private final SystemPermissionRepository permissionRepository;
     private final SystemRolePermissionRepository permissionAssignmentRepository;
     private final SystemRoleRepository roleRepository;
+    private final CreditAccountService creditAccountService;
 
     @PostConstruct
     protected void setupDomains(){
@@ -121,6 +125,7 @@ public class SetUp {
         setUpAdminPerms();
         setupPartnerRole();
         setupSasulaRole();
+        setupApiUserRole();
     }
 
     /**
@@ -186,5 +191,32 @@ public class SetUp {
                     .build());
             log.info("Assigned {} to {}", SASULA_INTEGRATION, SASULA);
         }
+    }
+
+    private void setupApiUserRole() {
+        Optional<SystemRoleModel> existing = roleRepository.findFirstByRoleCode(API_USER);
+        if (existing.isEmpty()) {
+            roleRepository.save(SystemRoleModel.builder()
+                    .roleName("API User")
+                    .roleCode(API_USER)
+                    .roleDomain(AppDomains.CLIENT_SIDE)
+                    .build());
+            log.info("Added {} role", API_USER);
+        }
+        Optional<SystemRolePermissionAssignmentModel> assigned = permissionAssignmentRepository
+                .findFirstByRoleCodeAndPermissionCode(API_USER, SEND_SMS);
+        if (assigned.isEmpty()) {
+            permissionAssignmentRepository.save(SystemRolePermissionAssignmentModel.builder()
+                    .roleCode(API_USER)
+                    .permissionCode(SEND_SMS)
+                    .build());
+            log.info("Assigned {} to {}", SEND_SMS, API_USER);
+        }
+    }
+
+    @PostConstruct
+    public void setupLedgerAccounts() {
+        creditAccountService.ensureSystemAccounts();
+        log.info("Adricore control, operations, and income accounts are ready");
     }
 }

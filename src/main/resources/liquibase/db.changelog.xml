@@ -14,5 +14,14 @@
     <include file="/changes/2026-09-08-partner-credit-accounts.sql" relativeToChangelogFile="true"/>
     <include file="/changes/2026-09-08-audit-partner-scope.sql" relativeToChangelogFile="true"/>
     <include file="/changes/2026-09-08-sasula-topup-reference.sql" relativeToChangelogFile="true"/>
+    <include file="/changes/2026-09-12-sms-pricing-profile.sql" relativeToChangelogFile="true"/>
+    <include file="/changes/2026-09-12-payment-requests.sql" relativeToChangelogFile="true"/>
+    <include file="/changes/2026-09-12-api-user-role.sql" relativeToChangelogFile="true"/>
+    <changeSet id="2026-09-13-credit-tx-income-type" author="adricore" runInTransaction="false">
+        <sql>ALTER TYPE credit_tx_type ADD VALUE IF NOT EXISTS 'INCOME';</sql>
+    </changeSet>
+    <include file="/changes/2026-09-13-ledger-accounts.sql" relativeToChangelogFile="true"/>
+    <include file="/changes/2026-09-13-pricing-topup-fee-amount.sql" relativeToChangelogFile="true"/>
+    <include file="/changes/2026-09-13-pricing-selling-price-derived.sql" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

@@ -11,7 +11,67 @@
     </p>
   </div>
 
-  <div class="stats">
+  @if (isPartnerUser()) {
+    <div class="spotlight">
+      <article class="spot-card plan-card">
+        <span>Your SMS plan</span>
+        <strong>{{ planName() }}</strong>
+        <p class="meta">{{ planCode() }}</p>
+        <p class="plan-price">
+          {{ formatMoney(planPrice(), planCurrency()) }}
+          <span>per SMS</span>
+        </p>
+        <small>{{ planVolume() }} · {{ planBilling() }}</small>
+      </article>
+
+      <article class="spot-card sms-card" [class.low]="remainingSms() === 0">
+        <span>SMS remaining</span>
+        <strong>{{ remainingSms() == null ? '—' : remainingSms()!.toLocaleString() }}</strong>
+        <p class="meta">{{ planBilling() }}</p>
+        <p class="plan-price">
+          {{ formatMoney(planPrice(), planCurrency()) }}
+          <span>per SMS</span>
+        </p>
+        <small>
+          @if (remainingSms() == null) {
+            Attach a priced SMS plan to estimate remaining messages.
+          } @else if (remainingSms() === 0) {
+            Top up to send more messages on {{ planName() }}.
+          } @else {
+            {{ formatMoney(creditAmount(), partner()?.credit?.currency) }} covers this many messages on {{ planName() }}
+          }
+        </small>
+      </article>
+
+      <article class="spot-card credit-card" [class.low]="creditLow()">
+        <span>Available credit</span>
+        <strong>{{ formatMoney(creditAmount(), partner()?.credit?.currency) }}</strong>
+        <p class="meta">{{ partner()?.partnerCode }}</p>
+        <p class="plan-price">
+          @if (pendingTopup() > 0) {
+            {{ formatMoney(pendingTopup(), partner()?.credit?.currency) }}
+            <span>awaiting payment</span>
+          } @else {
+            &nbsp;
+          }
+        </p>
+        <div class="spot-foot">
+          <small>
+            @if (creditLow()) {
+              Balance is too low to send SMS. Top up to keep traffic moving.
+            } @else if (reservedAmount() > 0) {
+              {{ formatMoney(reservedAmount(), partner()?.credit?.currency) }} reserved for in-flight traffic
+            } @else {
+              Ready to send SMS
+            }
+          </small>
+          <button type="button" class="topup-btn" (click)="openTopup()">Top up</button>
+        </div>
+      </article>
+    </div>
+  }
+
+  <div class="metrics">
     @for (card of visibleCards(); track card.label) {
       <article>
         <span>{{ card.label }}</span>
@@ -28,14 +88,6 @@
         <strong>{{ auditLoading() ? '…' : auditTotal() }}</strong>
         <small>{{ auditToday() }} today · {{ auditFailed() }} failed</small>
         <a routerLink="/audit-logs">View audit log</a>
-      </article>
-    }
-    @if (isPartnerUser()) {
-      <article>
-        <span>Available credit</span>
-        <strong>{{ formatMoney(partner()?.credit?.available ?? partner()?.credit?.balance, partner()?.credit?.currency) }}</strong>
-        <small>{{ partner()?.partnerCode || 'Your operator account' }}</small>
-        <a routerLink="/profile">View profile</a>
       </article>
     }
   </div>
@@ -90,3 +142,102 @@
     </section>
   }
 </section>
+
+@if (topupOpen()) {
+  <div class="overlay" (click)="closeTopup()">
+    <section class="sheet" role="dialog" aria-modal="true" aria-label="Top up credit" (click)="$event.stopPropagation()">
+      <p class="kicker">Credit</p>
+      <h3>Top up SMS credit</h3>
+      <p class="sheet-lead">
+        Enter the amount to load. After the invoice is created you can pay immediately with mobile money.
+      </p>
+
+      @if (topupError()) {
+        <p class="banner bad" role="alert">{{ topupError() }}</p>
+      }
+
+      @if (topupResult(); as result) {
+        <div class="pay-box">
+          <span>Invoice</span>
+          <strong>{{ formatMoney(result.invoice?.amount || result.amount, result.currency) }}</strong>
+          <dl class="invoice-meta">
+            <div>
+              <dt>Invoice ID</dt>
+              <dd><code>{{ invoiceId() }}</code></dd>
+            </div>
+            <div>
+              <dt>Status</dt>
+              <dd>{{ result.invoice?.status || result.status || 'pending' }}</dd>
+            </div>
+            <div>
+              <dt>Due</dt>
+              <dd>{{ result.dueDate ? (result.dueDate | date: 'mediumDate') : '—' }}</dd>
+            </div>
+          </dl>
+        </div>
+
+        @if (paymentSuccessful()) {
+          <p class="banner ok" role="status">Payment received. Your SMS credit has been updated.</p>
+          <div class="sheet-actions">
+            <button type="button" class="primary" (click)="closeTopup()">Done</button>
+          </div>
+        } @else {
+          @if (paymentInFlight()) {
+            <p class="banner wait" role="status">
+              Approve the mobile money prompt on {{ payment()?.customerPhone }}. We are checking for confirmation.
+            </p>
+          } @else if (paymentFailed()) {
+            <p class="banner bad" role="alert">
+              {{ payment()?.returnMessage || 'The payment request failed. You can try Pay now again.' }}
+            </p>
+          }
+
+          <form [formGroup]="payForm" (ngSubmit)="submitPayment()" novalidate>
+            <label class="field">
+              <span>Mobile money number</span>
+              <input
+                type="tel"
+                formControlName="customerPhone"
+                inputmode="tel"
+                autocomplete="tel"
+                placeholder="2567XXXXXXXX"
+                [readonly]="paymentInFlight() || paying()"
+              />
+              @if (payForm.controls.customerPhone.touched && payForm.controls.customerPhone.invalid) {
+                <small>Enter the phone number that will receive the payment prompt.</small>
+              }
+            </label>
+            <div class="sheet-actions">
+              <button type="button" class="ghost" (click)="closeTopup()" [disabled]="paying()">Close</button>
+              <button type="submit" class="primary" [disabled]="paying() || paymentInFlight()">
+                @if (paying()) {
+                  Requesting…
+                } @else if (paymentInFlight()) {
+                  Waiting for payment
+                } @else {
+                  Pay now
+                }
+              </button>
+            </div>
+          </form>
+        }
+      } @else {
+        <form [formGroup]="topupForm" (ngSubmit)="submitTopup()" novalidate>
+          <label class="field">
+            <span>Amount ({{ partner()?.credit?.currency || partner()?.currency || 'UGX' }})</span>
+            <input type="number" formControlName="amount" min="1" step="100" />
+            @if (topupForm.controls.amount.touched && topupForm.controls.amount.invalid) {
+              <small>Enter an amount greater than zero.</small>
+            }
+          </label>
+          <div class="sheet-actions">
+            <button type="button" class="ghost" (click)="closeTopup()" [disabled]="topupSaving()">Cancel</button>
+            <button type="submit" class="primary" [disabled]="topupSaving()">
+              {{ topupSaving() ? 'Creating…' : 'Request top-up' }}
+            </button>
+          </div>
+        </form>
+      }
+    </section>
+  </div>
+}

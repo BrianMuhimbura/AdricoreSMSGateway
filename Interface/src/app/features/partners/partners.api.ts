@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { GatewayApi } from '../../core/api/gateway-api';
 import { PagedListRequest, PagedListResponse } from '../../core/api/paged-list';
-import { Partner, PartnerPayload } from './partners.model';
+import { Partner, PartnerPayload, PartnerPayNowRequest, PartnerTopupRequest, PartnerTopupResult } from './partners.model';
 
 export type PartnerLookup = Pick<Partner, 'id' | 'partnerCode' | 'name' | 'status'>;
 
@@ -35,5 +35,17 @@ export class PartnersApi {
 
   profile() {
     return this.api.call<Partner>('Partners', 'profile');
+  }
+
+  requestTopup(payload: PartnerTopupRequest) {
+    return this.api.call<PartnerTopupResult>('Partners', 'requestTopup', { ...payload });
+  }
+
+  payNow(payload: PartnerPayNowRequest) {
+    return this.api.call<PartnerTopupResult>('Partners', 'payNow', { ...payload });
+  }
+
+  paymentStatus(paymentRequestId: string) {
+    return this.api.call<PartnerTopupResult>('Partners', 'paymentStatus', { paymentRequestId });
   }
 }
